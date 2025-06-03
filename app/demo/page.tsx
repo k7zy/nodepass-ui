@@ -1,13 +1,21 @@
 // pages/tunnels/page.tsx - 升级后的版本
 "use client";
 
+import {
+  Badge,
+  Card,
+  Pagination,
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+  User
+} from "@heroui/react";
 import React from "react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@heroui/badge";
-import { User } from "@heroui/user";
-import { Table, TableHeader, TableBody, TableRow, TableCell, TableColumn } from "@heroui/table";
-import { Pagination } from "@heroui/pagination";
-import { Card } from "@heroui/card";
+
 import { Box, Flex } from "@/components";
 import { ProTableToolBox } from "./components/toolbox";
  

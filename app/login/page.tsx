@@ -1,10 +1,15 @@
 'use client';
 
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Input
+} from "@heroui/react";
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@heroui/button';
-import { Input } from '@heroui/input';
-import { Card, CardBody, CardHeader } from '@heroui/react';
+
 import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLock, faUser, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';

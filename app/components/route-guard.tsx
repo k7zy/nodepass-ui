@@ -1,8 +1,11 @@
 'use client';
 
+import {
+  Spinner
+} from "@heroui/react";
 import { useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Spinner } from '@heroui/react';
+
 import { useAuth } from './auth-provider';
 
 interface RouteGuardProps {

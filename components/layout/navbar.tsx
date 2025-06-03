@@ -1,12 +1,12 @@
 "use client";
 
 import {
+  Divider,
   Navbar as HeroUINavbar,
   NavbarContent,
-  NavbarMenu,
-  NavbarMenuToggle,
   NavbarItem,
-  Divider,
+  NavbarMenu,
+  NavbarMenuToggle
 } from "@heroui/react";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { NavbarLogo } from "./navbar-logo";

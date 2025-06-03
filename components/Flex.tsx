@@ -1,5 +1,7 @@
+import {
+  cn
+} from "@heroui/react";
 import * as React from "react";
-import { cn } from "@heroui/react";
 
 interface FlexProps extends React.HTMLAttributes<HTMLDivElement> {
   children?: React.ReactNode;

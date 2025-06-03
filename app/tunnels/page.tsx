@@ -1,12 +1,25 @@
 "use client";
 
+import {
+  Button,
+  Chip,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Pagination,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+  useDisclosure
+} from "@heroui/react";
 import React from "react";
-import { Chip } from "@heroui/chip";
-import { Table, TableHeader, TableBody, TableRow, TableCell, TableColumn } from "@heroui/table";
-import { Pagination } from "@heroui/pagination";
-import { Button } from "@heroui/button";
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
-import { Spinner } from "@heroui/react";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faEye, 

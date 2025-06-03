@@ -1,17 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  Button,
   Avatar,
   Badge,
-  Input,
+  Button,
   Form,
+  Input,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader
 } from "@heroui/react";
+import React, { useState } from "react";
+
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faServer, faPen, faWifi, faSpinner, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";

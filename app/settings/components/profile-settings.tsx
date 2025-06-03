@@ -1,10 +1,13 @@
 "use client";
 
+import {
+  Avatar,
+  Button,
+  Card,
+  CardBody,
+  Input
+} from "@heroui/react";
 import React from "react";
-import { Card, CardBody } from "@heroui/react";
-import { Input } from "@heroui/input";
-import { Avatar } from "@heroui/avatar";
-import { Button } from "@heroui/button";
 
 export default function ProfileSettings() {
   return (

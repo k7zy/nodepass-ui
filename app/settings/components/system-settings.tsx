@@ -1,11 +1,16 @@
 "use client";
 
+import {
+  Card,
+  CardBody,
+  Divider,
+  Input,
+  Select,
+  SelectItem,
+  Switch
+} from "@heroui/react";
 import React, { forwardRef, useImperativeHandle } from "react";
-import { Card, CardBody } from "@heroui/react";
-import { Divider } from "@heroui/react";
-import { Input } from "@heroui/input";
-import { Switch } from "@heroui/switch";
-import { Select, SelectItem } from "@heroui/select";
+
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

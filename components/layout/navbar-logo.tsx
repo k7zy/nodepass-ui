@@ -1,6 +1,8 @@
 "use client";
 
-import { NavbarBrand } from "@heroui/react";
+import {
+  NavbarBrand
+} from "@heroui/react";
 import NextLink from "next/link";
 import { useTheme } from "next-themes";
 import { useIsSSR } from "@react-aria/ssr";

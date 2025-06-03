@@ -1,12 +1,24 @@
 "use client";
 
+import {
+  Avatar,
+  Badge,
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Input,
+  Pagination,
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow
+} from "@heroui/react";
 import React from "react";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
-import { Table, TableHeader, TableBody, TableRow, TableCell, TableColumn } from "@heroui/table";
-import { Badge } from "@heroui/badge";
-import { Pagination } from "@heroui/pagination";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faSearch, 
@@ -19,7 +31,6 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Selection } from "@react-types/shared";
-import { Avatar } from "@heroui/avatar";
 
 export default function TunnelsPage() {
   const router = useRouter();

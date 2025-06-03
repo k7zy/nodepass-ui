@@ -1,6 +1,8 @@
 "use client";
 
-import { NavbarItem } from "@heroui/react";
+import {
+  NavbarItem
+} from "@heroui/react";
 import { Icon } from "@iconify/react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";

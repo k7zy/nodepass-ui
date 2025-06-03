@@ -1,9 +1,23 @@
 "use client";
 
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Chip,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Tab,
+  Tabs,
+  useDisclosure
+} from "@heroui/react";
 import React, { useEffect } from "react";
-import { Card, CardHeader, CardBody } from "@heroui/react";
-import { Badge, Button, Tab, Tabs, Chip } from "@heroui/react";
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";

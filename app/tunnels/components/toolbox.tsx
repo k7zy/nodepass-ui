@@ -1,10 +1,16 @@
 'use client';
 
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Input,
+  Spinner
+} from "@heroui/react";
 import React, { useState, useEffect } from "react";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
-import { Spinner } from "@heroui/react";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faSearch, 

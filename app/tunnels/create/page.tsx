@@ -1,12 +1,22 @@
 "use client";
 
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Input,
+  Radio,
+  RadioGroup,
+  Select,
+  SelectItem,
+  Skeleton,
+  Snippet,
+  Spinner
+} from "@heroui/react";
 import { useState, useEffect } from "react";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { RadioGroup, Radio } from "@heroui/radio";
-import { Select, SelectItem } from "@heroui/select";
-import { Divider, Spinner, Skeleton } from "@heroui/react";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faServer, 
@@ -16,7 +26,7 @@ import {
   faExclamationTriangle
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
-import { Snippet } from "@heroui/snippet";
+
 import { cn } from "@/lib/utils";
 import { EndpointStatus } from '@prisma/client';
 

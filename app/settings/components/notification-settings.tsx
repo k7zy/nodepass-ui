@@ -1,14 +1,19 @@
 "use client";
 
+import {
+  Avatar,
+  Button,
+  Card,
+  CardBody,
+  Divider,
+  Input,
+  Select,
+  SelectItem,
+  Switch
+} from "@heroui/react";
 import React from "react";
-import { Card, CardBody } from "@heroui/react";
-import { Divider } from "@heroui/react";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Switch } from "@heroui/switch";
-import { Select, SelectItem } from "@heroui/select";
+
 import { Icon } from "@iconify/react";
-import { Avatar } from "@heroui/avatar";
 
 export default function NotificationSettings() {
   return (

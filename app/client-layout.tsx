@@ -1,7 +1,10 @@
 'use client';
 
+import {
+  Link
+} from "@heroui/react";
 import { usePathname } from 'next/navigation';
-import { Link } from "@heroui/link";
+
 import { AuthProvider } from "./components/auth-provider";
 import { RouteGuard } from "./components/route-guard";
 import { Navbar } from "@/components/layout/navbar";

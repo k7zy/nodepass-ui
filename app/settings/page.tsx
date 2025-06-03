@@ -1,8 +1,12 @@
 "use client";
 
+import {
+  Button,
+  Tab,
+  Tabs
+} from "@heroui/react";
 import React from "react";
-import { Button } from "@heroui/button";
-import { Tabs, Tab } from "@heroui/tabs";
+
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
 
