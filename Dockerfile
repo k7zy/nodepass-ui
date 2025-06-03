@@ -94,9 +94,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 
-# 复制已生成的 Prisma 客户端
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# 生成 Prisma 客户端（生产环境）
+RUN pnpm exec prisma generate
 
 # 创建非root用户
 RUN addgroup -g 1001 -S nodejs && \
