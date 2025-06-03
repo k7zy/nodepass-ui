@@ -1,0 +1,164 @@
+name: 🐳 构建并发布Docker镜像
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: 📦 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🔧 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔑 登录到Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 📝 提取元数据
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🏗️ 构建并推送Docker镜像 (标准版)
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        target: development
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🏗️ 构建并推送Docker镜像 (中国优化版)
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.china
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:china
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:china-latest
+        labels: ${{ steps.meta.outputs.labels }}
+        target: development
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 生产环境镜像构建
+  build-production:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    if: github.event_name == 'release'
+
+    steps:
+    - name: 📦 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🔧 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔑 登录到Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 📝 提取生产环境元数据
+      id: meta-prod
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}}-prod
+          type=raw,value=production
+
+    - name: 🏗️ 构建并推送生产环境镜像
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta-prod.outputs.tags }}
+        labels: ${{ steps.meta-prod.outputs.labels }}
+        target: production
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🏗️ 构建并推送生产环境镜像 (中国优化版)
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.china
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:china-production
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:china-prod
+        labels: ${{ steps.meta-prod.outputs.labels }}
+        target: production
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 安全扫描
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+
+    steps:
+    - name: 🔍 运行Trivy漏洞扫描
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: 📋 上传Trivy扫描结果到GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif' 
