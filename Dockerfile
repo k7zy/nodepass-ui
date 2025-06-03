@@ -84,17 +84,19 @@ RUN pnpm build:all
 # ================================
 FROM base AS production
 
-# 只安装生产依赖
+# 安装生产依赖和必要的CLI工具
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod && \
+    pnpm add prisma --save-dev
 
 # 复制构建产物
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 
-# 生成 Prisma 客户端（生产环境）
-RUN pnpm exec prisma generate
+# 复制已生成的 Prisma 客户端
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # 创建非root用户
 RUN addgroup -g 1001 -S nodejs && \
