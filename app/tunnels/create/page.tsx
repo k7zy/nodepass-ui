@@ -1,0 +1,592 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Input } from "@heroui/input";
+import { Button } from "@heroui/button";
+import { RadioGroup, Radio } from "@heroui/radio";
+import { Select, SelectItem } from "@heroui/select";
+import { Divider, Spinner, Skeleton } from "@heroui/react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { 
+  faServer, 
+  faDesktop,
+  faCheck,
+  faXmark,
+  faExclamationTriangle
+} from "@fortawesome/free-solid-svg-icons";
+import { useRouter } from "next/navigation";
+import { Snippet } from "@heroui/snippet";
+import { cn } from "@/lib/utils";
+import { EndpointStatus } from '@prisma/client';
+
+// 添加 Toast 组件
+const Toast = ({ 
+  message, 
+  type = "success", 
+  onClose 
+}: { 
+  message: string; 
+  type?: "success" | "error" | "warning"; 
+  onClose: () => void;
+}) => {
+  const colors = {
+    success: "bg-success-50 border-success-200 text-success-800",
+    error: "bg-danger-50 border-danger-200 text-danger-800", 
+    warning: "bg-warning-50 border-warning-200 text-warning-800"
+  };
+
+  const icons = {
+    success: faCheck,
+    error: faXmark,
+    warning: faExclamationTriangle
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2">
+      <Card className={`p-3 border-2 shadow-lg ${colors[type]} max-w-md`}>
+        <CardBody className="flex flex-row items-center gap-3 p-0">
+          <FontAwesomeIcon 
+            icon={icons[type]} 
+            className={`text-lg ${type === 'success' ? 'text-success' : type === 'error' ? 'text-danger' : 'text-warning'}`}
+          />
+          <span className="flex-1">{message}</span>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            onClick={onClose}
+            className="min-w-6 w-6 h-6"
+          >
+            <FontAwesomeIcon icon={faXmark} className="text-xs" />
+          </Button>
+        </CardBody>
+      </Card>
+    </div>
+  );
+};
+
+interface ApiEndpoint {
+  id: string;
+  name: string;
+  url: string;
+  apiPath: string;
+  status: EndpointStatus;
+  tunnelCount: number;
+}
+
+export default function CreateTunnelPage() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    apiEndpoint: "",
+    mode: "server",
+    tunnelName: "",
+    tunnelAddress: "0.0.0.0",
+    tunnelPort: "",
+    targetAddress: "0.0.0.0",
+    targetPort: "",
+    tlsMode: "mode1",
+    certPath: "",
+    keyPath: "",
+    logLevel: "info"
+  });
+
+  const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+  } | null>(null);
+
+  // 显示 toast 的辅助函数
+  const showToast = (message: string, type: "success" | "error" | "warning" = "success") => {
+    setToast({ message, type });
+  };
+
+  // 获取端点列表
+  useEffect(() => {
+    const fetchEndpoints = async () => {
+      try {
+        const response = await fetch('/api/endpoints/simple?excludeFailed=true');
+        if (!response.ok) throw new Error('获取端点列表失败');
+        const data = await response.json();
+        console.log('获取到的端点数据:', data);
+        setEndpoints(data);
+      } catch (error) {
+        console.error('获取端点列表失败:', error);
+        showToast('获取端点列表失败', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEndpoints();
+  }, []);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async () => {
+    // 验证必填字段
+    if (!formData.apiEndpoint || !formData.tunnelName || !formData.tunnelPort || !formData.targetPort) {
+      showToast('请填写所有必填字段', 'warning');
+      return;
+    }
+
+    // 如果是服务器模式且TLS模式为mode2，验证证书路径
+    if (formData.mode === 'server' && formData.tlsMode === 'mode2') {
+      if (!formData.certPath || !formData.keyPath) {
+        showToast('TLS模式2需要提供证书和密钥文件路径', 'warning');
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/tunnels', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.tunnelName,
+          endpointId: formData.apiEndpoint,
+          mode: formData.mode,
+          tunnelAddress: formData.tunnelAddress,
+          tunnelPort: formData.tunnelPort,
+          targetAddress: formData.targetAddress,
+          targetPort: formData.targetPort,
+          tlsMode: formData.tlsMode,
+          certPath: formData.certPath || undefined,
+          keyPath: formData.keyPath || undefined,
+          logLevel: formData.logLevel,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        showToast('隧道实例创建成功！', 'success');
+        // 延迟跳转，让用户看到成功提示
+        setTimeout(() => {
+          router.push('/tunnels');
+        }, 1500);
+      } else {
+        throw new Error(result.error || '创建失败');
+      }
+    } catch (error) {
+      console.error('创建隧道实例失败:', error);
+      showToast(`创建失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto py-6 space-y-6">
+      {/* Toast 组件 */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">创建实例</h1>
+        <Button 
+          variant="light"
+          onClick={() => router.back()}
+        >
+          返回
+        </Button>
+      </div>
+
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">选择 API 端点</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6">
+          {loading ? (
+            <div className="overflow-x-auto scrollbar-hide">
+              <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Card
+                    key={i}
+                    className="min-w-[280px] flex-shrink-0 shadow-none border-2 border-default-200"
+                  >
+                    <CardBody className="space-y-2 p-4">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="w-2 h-2 rounded-full" />
+                        <Skeleton className="w-24 h-4 rounded-lg" />
+                      </div>
+                      <Skeleton className="w-full h-4 rounded-lg" />
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="w-16 h-3 rounded-lg" />
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : endpoints.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-default-500">暂无可用的 API 端点</p>
+              <Button 
+                color="primary" 
+                variant="flat"
+                size="sm"
+                className="mt-2"
+                onClick={() => router.push('/endpoints')}
+              >
+                去添加端点
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto scrollbar-hide">
+              <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+                {endpoints.map((endpoint) => (
+                  <Card
+                    key={endpoint.id}
+                    isPressable
+                    isHoverable
+                    className={`min-w-[280px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                    onClick={() => handleInputChange("apiEndpoint", endpoint.id)}
+                  >
+                    <CardBody className="space-y-2 p-4">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className={cn(
+                            "w-2 h-2 rounded-full inline-block",
+                            endpoint.status === EndpointStatus.ONLINE ? "bg-success" : "bg-danger"
+                          )}
+                        />
+                        <h3 className="font-semibold text-sm">{endpoint.name}</h3>
+                      </div>
+                      <p className="text-small text-default-500 truncate">{endpoint.url}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">隧道模式</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card
+              isPressable
+              isHoverable
+              className={`shadow-none border-2 ${formData.mode === "server" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+              onClick={() => handleInputChange("mode", "server")}
+            >
+              <CardBody className="flex items-center gap-4 p-6">
+                <div className="w-8 h-8 flex items-center justify-center transition-all duration-300">
+                  <FontAwesomeIcon 
+                    icon={faServer} 
+                    className="text-2xl"
+                    style={{ width: "1.5rem", height: "1.5rem" }}
+                  />
+                </div>
+                <div className="text-center w-full">
+                  <h3 className="font-semibold">服务器模式</h3>
+                  <p className="text-small text-default-500">接受传入的隧道连接，提供给目标服务</p>
+                </div>
+              </CardBody>
+            </Card>
+            <Card
+              isPressable
+              isHoverable
+              className={`shadow-none border-2 ${formData.mode === "client" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+              onClick={() => handleInputChange("mode", "client")}
+            >
+              <CardBody className="flex items-center gap-4 p-6">
+                <div className="w-8 h-8 flex items-center justify-center transition-all duration-300">
+                  <FontAwesomeIcon 
+                    icon={faDesktop} 
+                    className="text-2xl"
+                    style={{ width: "1.5rem", height: "1.5rem" }}
+                  />
+                </div>
+                <div className="text-center w-full">
+                  <h3 className="font-semibold">客户端模式</h3>
+                  <p className="text-small text-default-500">连接到远程隧道服务器，转发本地目标</p>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">网络配置</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6 space-y-6">
+          {/* 基本信息行 */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-3">
+              <Input
+                label="隧道名称"
+                placeholder="web-server-tunnel"
+                value={formData.tunnelName}
+                onChange={(e) => handleInputChange("tunnelName", e.target.value)}
+                description="为此隧道实例指定一个描述性名称"
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <Select
+                label="日志级别"
+                placeholder="选择日志级别"
+                selectedKeys={[formData.logLevel]}
+                onChange={(e) => handleInputChange("logLevel", e.target.value)}
+                renderValue={(items) => {
+                  return <div>{items[0]?.textValue}</div>;
+                }}
+              >
+                <SelectItem key="debug" textValue="Debug">
+                  Debug
+                  <div className="text-tiny text-default-400">详细调试信息</div>
+                </SelectItem>
+                <SelectItem key="info" textValue="Info">
+                  Info
+                  <div className="text-tiny text-default-400">一般操作信息(默认)</div>
+                </SelectItem>
+                <SelectItem key="warn" textValue="Warn">
+                  Warn
+                  <div className="text-tiny text-default-400">警告条件</div>
+                </SelectItem>
+                <SelectItem key="error" textValue="Error">
+                  Error
+                  <div className="text-tiny text-default-400">错误条件</div>
+                </SelectItem>
+                <SelectItem key="fatal" textValue="Fatal">
+                  Fatal
+                  <div className="text-tiny text-default-400">致命条件</div>
+                </SelectItem>
+              </Select>
+            </div>
+          </div>
+
+          {/* 隧道配置和目标配置 */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* 隧道端配置 */}
+            <Card className="shadow-none border-2 border-primary-200 bg-primary-50/30 dark:border-primary-800 dark:bg-primary-900/20">
+              <CardHeader className="pb-3">
+                <h3 className="text-lg font-semibold text-primary">隧道端配置</h3>
+                <p className="text-small text-default-500">
+                  {formData.mode === "server" ? "隧道监听的地址和端口" : "要连接的远程隧道地址和端口"}
+                </p>
+              </CardHeader>
+              <CardBody className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="隧道地址"
+                    placeholder="0.0.0.0"
+                    value={formData.tunnelAddress}
+                    onChange={(e) => handleInputChange("tunnelAddress", e.target.value)}
+                    description={formData.mode === "server" ? "监听地址" : "远程地址"}
+                  />
+                  <Input
+                    label="隧道端口"
+                    placeholder="10101"
+                    type="number"
+                    value={formData.tunnelPort}
+                    onChange={(e) => handleInputChange("tunnelPort", e.target.value)}
+                    description={formData.mode === "server" ? "监听端口" : "远程端口"}
+                  />
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* 目标端配置 */}
+            <Card className="shadow-none border-2 border-secondary-200 bg-secondary-50/30 dark:border-secondary-800 dark:bg-secondary-900/20">
+              <CardHeader className="pb-3">
+                <h3 className="text-lg font-semibold text-secondary">目标端配置</h3>
+                <p className="text-small text-default-500">
+                  {formData.mode === "server" ? "隧道流量转发到的目标地址和端口" : "本地服务的地址和端口"}
+                </p>
+              </CardHeader>
+              <CardBody className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="目标地址"
+                    placeholder="0.0.0.0"
+                    value={formData.targetAddress}
+                    onChange={(e) => handleInputChange("targetAddress", e.target.value)}
+                    description={formData.mode === "server" ? "转发目标" : "本地地址"}
+                  />
+                  <Input
+                    label="目标端口"
+                    placeholder="8080"
+                    type="number"
+                    value={formData.targetPort}
+                    onChange={(e) => handleInputChange("targetPort", e.target.value)}
+                    description={formData.mode === "server" ? "转发端口" : "本地端口"}
+                  />
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+
+          {/* 移动端友好的连接示意图 */}
+          <Card className="shadow-none border-2 border-default-200 bg-default-50/50 dark:bg-default-900/50 lg:hidden">
+            <CardBody className="p-4">
+              <h4 className="font-semibold mb-3 text-center">连接流向</h4>
+              <div className="flex flex-col items-center space-y-2 text-sm">
+                {formData.mode === "server" ? (
+                  <>
+                    <div className="text-center">
+                      <div className="font-medium text-primary">客户端连接</div>
+                      <div className="text-default-500">来自任意位置</div>
+                    </div>
+                    <div className="text-xl">⬇️</div>
+                    <div className="text-center">
+                      <div className="font-medium text-primary">隧道服务器</div>
+                      <div className="text-default-500">{formData.tunnelAddress}:{formData.tunnelPort}</div>
+                    </div>
+                    <div className="text-xl">⬇️</div>
+                    <div className="text-center">
+                      <div className="font-medium text-secondary">目标服务</div>
+                      <div className="text-default-500">{formData.targetAddress}:{formData.targetPort}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <div className="font-medium text-secondary">本地服务</div>
+                      <div className="text-default-500">{formData.targetAddress}:{formData.targetPort}</div>
+                    </div>
+                    <div className="text-xl">⬆️</div>
+                    <div className="text-center">
+                      <div className="font-medium text-primary">隧道客户端</div>
+                      <div className="text-default-500">本地</div>
+                    </div>
+                    <div className="text-xl">⬆️</div>
+                    <div className="text-center">
+                      <div className="font-medium text-primary">远程隧道服务器</div>
+                      <div className="text-default-500">{formData.tunnelAddress}:{formData.tunnelPort}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+        </CardBody>
+      </Card>
+
+      {formData.mode === "server" && (
+        <Card className="p-2 shadow-none border-2 border-default-200">
+          <CardHeader>
+            <h2 className="text-xl font-semibold">安全设置</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody className="p-6 space-y-4">
+            <RadioGroup
+              label="TLS 安全级别"
+              value={formData.tlsMode}
+              onValueChange={(value: string) => handleInputChange("tlsMode", value)}
+            >
+              <Radio value="mode0">模式 0: 无 TLS 加密（明文 TCP/UDP）</Radio>
+              <Radio value="mode1">模式 1: 自签名证书（自动生成）</Radio>
+              <Radio value="mode2">模式 2: 自定义证书（需要 crt 和 key 参数）</Radio>
+            </RadioGroup>
+            
+            {formData.tlsMode === "mode2" && (
+              <>
+                <Input
+                  label="证书文件路径"
+                  placeholder="/path/to/cert.pem"
+                  value={formData.certPath}
+                  onChange={(e) => handleInputChange("certPath", e.target.value)}
+                />
+                <Input
+                  label="密钥文件路径"
+                  placeholder="/path/to/key.pem"
+                  value={formData.keyPath}
+                  onChange={(e) => handleInputChange("keyPath", e.target.value)}
+                />
+              </>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">配置摘要</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6">
+          <Card className="p-4 bg-success-50 border-2 border-success-200 shadow-none mb-4">
+            <CardBody>
+              <h3 className="text-lg font-semibold mb-4">请确认以下隧道配置：</h3>
+              <div className="space-y-2 text-sm">
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 端点：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道模式：</span> {formData.mode === "server" ? "服务器模式" : "客户端模式"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道名称：</span> {formData.tunnelName}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
+                {formData.mode === "server" &&
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
+                }
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {formData.logLevel.toUpperCase()}</p>
+              </div>
+            </CardBody>
+          </Card>
+          <Card className="p-2 bg-default-50 border-2 border-default-200 shadow-none">
+            <CardBody>
+              <h3 className="text-lg font-semibold mb-4">等效命令行</h3>
+              <Snippet>
+                {`${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}${
+                  formData.mode === "server" 
+                    ? `?log=${formData.logLevel}&tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}${
+                        formData.tlsMode === "mode2" ? `&crt=${formData.certPath}&key=${formData.keyPath}` : ""
+                      }`
+                    : `?log=${formData.logLevel}`
+                }`}
+              </Snippet>
+            </CardBody>
+          </Card>
+        </CardBody>
+      </Card>
+
+      <div className="flex justify-end gap-3">
+        <Button
+          variant="flat"
+          onClick={() => router.back()}
+        >
+          取消
+        </Button>
+        <Button
+          color="primary"
+          onClick={handleSubmit}
+          isDisabled={submitting}
+        >
+          {submitting ? "创建中..." : "创建实例"}
+        </Button>
+      </div>
+    </div>
+  );
+} 

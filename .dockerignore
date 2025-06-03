@@ -1,0 +1,66 @@
+# 排除不需要的文件和目录
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+
+# 构建输出
+dist/
+build/
+
+# 环境变量文件
+.env*
+!.env.example
+
+# 日志文件
+logs/
+*.log
+
+# 运行时文件
+*.pid
+*.lock
+
+# 数据库
+*.db
+*.sqlite
+data/
+
+# Git
+.git/
+.gitignore
+
+# IDE/编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# 文档
+README.md
+DOCKER_SETUP.md
+CONFIG.md
+*.md
+
+# 测试
+coverage/
+.nyc_output/
+
+# 临时文件
+tmp/
+temp/ 
