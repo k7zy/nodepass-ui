@@ -28,18 +28,35 @@ jobs:
       - name: 📝 获取版本信息
         id: get_version
         run: |
+          # 从package.json获取版本号作为唯一来源
+          VERSION=$(node -p "require('./package.json').version")
+          # 如果是tag触发，验证tag版本与package.json版本是否匹配
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=$(node -p "require('./package.json').version")
+            TAG_VERSION=${GITHUB_REF#refs/tags/v}
+            if [ "$VERSION" != "$TAG_VERSION" ]; then
+              echo "❌ 错误: Tag版本($TAG_VERSION)与package.json版本($VERSION)不匹配"
+              exit 1
+            fi
           fi
+          # 转换仓库名为小写
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "is_release=${{ startsWith(github.ref, 'refs/tags/') }}" >> $GITHUB_OUTPUT
+          echo "is_main=${{ github.ref == 'refs/heads/main' }}" >> $GITHUB_OUTPUT
           echo "repo_name=$REPO_LC" >> $GITHUB_OUTPUT
+          echo "📦 当前版本: $VERSION"
 
+      # 设置Node.js缓存
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      
+      # 只在发布版本时设置QEMU（用于多架构构建）
       - name: 🔧 设置 QEMU
+        if: startsWith(github.ref, 'refs/tags/')
         uses: docker/setup-qemu-action@v3
       
       - name: 🔧 设置 Docker Buildx
@@ -65,9 +82,10 @@ jobs:
           tags: |
             # PR时使用pr-number作为标签
             type=raw,value=pr-${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' }}
-            # main分支使用latest标签
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            # 发布时使用版本号标签
+            # main分支推送时生成latest和版本号标签
+            type=raw,value=latest,enable=${{ steps.get_version.outputs.is_main == 'true' }}
+            type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ steps.get_version.outputs.is_main == 'true' }}
+            # tag发布时也生成版本号标签（确保一致性）
             type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ steps.get_version.outputs.is_release == 'true' }}
       
       - name: 🏗️ 构建和推送
@@ -80,7 +98,8 @@ jobs:
             org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=${{ steps.get_version.outputs.repo_name }}
-          platforms: ${{ github.event_name != 'pull_request' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}  # PR只构建amd64
+          # 只在发布版本时构建多架构
+          platforms: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           cache-from: |
             type=gha,scope=${{ github.workflow }}
             type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache
@@ -96,6 +115,7 @@ jobs:
           echo "🏷️ 版本: ${{ steps.get_version.outputs.version }}"
           echo "📦 镜像标签:"
           echo "${{ steps.meta.outputs.tags }}" | tr '\n' '\n  '
+          echo "🏗️ 构建架构: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}"
 
       - name: 📝 创建发布说明
         if: startsWith(github.ref, 'refs/tags/')

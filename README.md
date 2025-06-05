@@ -18,8 +18,8 @@
 
 | | | |
 |---|---|---|
-| ![截图0](00.png) | ![截图1](01.png) | ![截图2](02.png) |
-| ![截图3](03.png) | ![截图4](04.png) | ![截图5](05.png) |
+| ![截图0](docs/00.png) | ![截图1](docs/01.png) | ![截图2](docs/02.png) |
+| ![截图3](docs/03.png) | ![截图4](docs/04.png) | ![截图5](docs/05.png) |
 
 ## 🔒 SSL 自签名证书支持
 
@@ -73,7 +73,7 @@
 > ================================
 > ```
 
-> 📚 查看 [Docker 完整部署文档](DOCKER.md) 了解详细信息
+> 📚 查看 [Docker 完整部署文档](docs/DOCKER.md) 了解详细信息
 
 ### 方式二：本地开发
 
@@ -168,7 +168,7 @@ pnpm exec prisma studio
 - 🐛 问题报告: [GitHub Issues](https://github.com/mecozea/nodepass-webui/issues)
 - 📖 文档: [项目 Wiki](https://github.com/mecozea/nodepass-webui/wiki)
 - 💬 社区讨论: [GitHub Discussions](https://github.com/mecozea/nodepass-webui/discussions)
-- 🐳 Docker 部署: [Docker 指南](DOCKER.md)
+- 🐳 Docker 部署: [Docker 指南](docs/DOCKER.md)
 
 ---
 

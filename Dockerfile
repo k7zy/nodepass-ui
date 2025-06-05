@@ -1,35 +1,34 @@
 # NodePass WebUI - 整合SSE服务的Docker镜像
 # Next.js应用内置SSE服务，单端口运行
 
-# 添加版本参数
-ARG VERSION=1.1.2
+# 版本参数（由GitHub Actions传入）
+ARG VERSION
 
 # 依赖阶段 - 用于缓存依赖
 FROM node:18-alpine AS deps
 
+# 安装构建必需的系统依赖（在依赖阶段就安装，便于缓存）
 # 设置pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# 只复制package文件
-COPY package.json pnpm-lock.yaml ./
+# 复制package文件
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# 安装依赖
-RUN apk add --no-cache python3 make g++ && \
-    pnpm install --frozen-lockfile
+# 安装所有依赖（包括开发依赖，因为构建时需要）
+RUN pnpm install --frozen-lockfile
 
 # 构建阶段
 FROM node:18-alpine AS builder
 
-# 设置pnpm
+# 设置pnpm（复用deps阶段的环境更好，但这里保持独立性）
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# 复制依赖
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json ./package.json
+# 复制deps阶段的所有内容（包括node_modules和配置文件）
+COPY --from=deps /app ./
 
 # 复制源代码并构建
 COPY . .
@@ -49,26 +48,35 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # 合并所有生产环境的设置
-RUN apk add --no-cache postgresql-client && \
-    addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+RUN apk add --no-cache postgresql-client
 
-# 只复制生产所需文件
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml ./
+# 复制package文件
+COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+
+# 只复制生产依赖的node_modules
+COPY --from=deps /app/node_modules ./node_modules
+
+# 复制构建产物和必要文件
 COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/server.ts ./server.ts
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/app ./app
+COPY --from=builder /app/components ./components
+COPY --from=builder /app/styles ./styles
+COPY --from=builder /app/config ./config
+COPY --from=builder /app/types ./types
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/next.config.js ./next.config.js
-COPY --from=builder /app/public ./public
 
-# 只安装生产依赖并清理
-RUN pnpm install --frozen-lockfile --prod && \
-    pnpm add prisma --save-dev && \
-    pnpm exec prisma generate && \
-    pnpm cache clean && \
-    rm -rf /root/.cache /root/.npm && \
-    chown -R nextjs:nodejs /app
+# 生成Prisma客户端并设置权限
+#USER nextjs
+#RUN pnpm exec prisma generate && \
+#    chown -R nextjs:nodejs /app
 
-USER nextjs
+# 生成Prisma客户端
+RUN pnpm exec prisma generate
 
 EXPOSE 3000
 
