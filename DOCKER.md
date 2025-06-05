@@ -81,7 +81,7 @@ mkdir -p logs && chmod 777 logs
 
 # 3. 启动容器
 docker run -d \
-  --name nodepass-webui \
+  --name nodepass-app \
   -p 3000:3000 \
   -v ./logs:/app/logs \
   -e POSTGRES_USER=nodepass \

@@ -1,129 +1,86 @@
 # NodePass WebUI - 整合SSE服务的Docker镜像
 # Next.js应用内置SSE服务，单端口运行
 
-FROM node:18-alpine AS base
+# 添加版本参数
+ARG VERSION=1.1.2
 
-# 安装必要的系统依赖
-RUN apk add --no-cache \
-    postgresql-client \
-    python3 \
-    make \
-    g++ \
-    && npm install -g pnpm
+# 依赖阶段 - 用于缓存依赖
+FROM node:18-alpine AS deps
+
+# 设置pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# ================================
-# 依赖安装阶段
-# ================================
-FROM base AS deps
-
-# 复制依赖配置文件
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# 只复制package文件
+COPY package.json pnpm-lock.yaml ./
 
 # 安装依赖
-RUN pnpm install --frozen-lockfile
+RUN apk add --no-cache python3 make g++ && \
+    pnpm install --frozen-lockfile
 
-# ================================
-# 开发环境 (用于 docker-compose 开发)
-# ================================
-FROM base AS development
-
-# 复制依赖
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json ./package.json
-
-# 复制所有源代码
-COPY . .
-
-# 生成 Prisma 客户端
-RUN pnpm exec prisma generate
-
-# 暴露端口 (仅需要3000端口，SSE服务已整合)
-EXPOSE 3000
-
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
-
-# 开发启动脚本
-CMD ["sh", "-c", "\
-    echo '🚀 启动NodePass开发环境 (整合SSE服务)...' && \
-    echo '⏳ 等待数据库连接...' && \
-    while ! pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-nodepass} -q; do \
-        echo '⏳ 等待PostgreSQL启动...' && sleep 2; \
-    done && \
-    echo '📊 运行数据库迁移...' && \
-    pnpm exec prisma migrate deploy && \
-    echo '🌱 生成Prisma客户端...' && \
-    pnpm exec prisma generate && \
-    echo '🎯 启动整合服务 (Next.js + SSE)...' && \
-    pnpm dev:integrated \
-"]
-
-# ================================
 # 构建阶段
-# ================================
-FROM base AS builder
+FROM node:18-alpine AS builder
+
+# 设置pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
 
 # 复制依赖
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./package.json
 
-# 复制源代码
+# 复制源代码并构建
 COPY . .
+RUN pnpm exec prisma generate && pnpm build
 
-# 生成 Prisma 客户端
-RUN pnpm exec prisma generate
-
-# 构建应用
-RUN pnpm build
-
-# ================================
 # 生产环境
-# ================================
-FROM base AS production
+FROM node:18-alpine AS production
 
-# 安装生产依赖和必要的CLI工具
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --prod && \
-    pnpm add prisma tsx --save-dev
+# 设置版本标签
+ARG VERSION
+LABEL version=${VERSION}
+LABEL org.opencontainers.image.version=${VERSION}
 
-# 复制构建产物和必要文件
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/server.ts ./server.ts
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/lib ./lib
-COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/app ./app
-COPY --from=builder /app/components ./components
-COPY --from=builder /app/styles ./styles
-COPY --from=builder /app/config ./config
-COPY --from=builder /app/types ./types
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/next.config.js ./next.config.js
+# 设置pnpm（使用corepack而不是npm）
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# 生成 Prisma 客户端（生产环境）
-RUN pnpm exec prisma generate
+WORKDIR /app
 
-# 创建非root用户
-RUN addgroup -g 1001 -S nodejs && \
+# 合并所有生产环境的设置
+RUN apk add --no-cache postgresql-client && \
+    addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
-# 设置正确的权限
-RUN chown -R nextjs:nodejs /app
+# 只复制生产所需文件
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/next.config.js ./next.config.js
+COPY --from=builder /app/public ./public
+
+# 只安装生产依赖并清理
+RUN pnpm install --frozen-lockfile --prod && \
+    pnpm add prisma --save-dev && \
+    pnpm exec prisma generate && \
+    pnpm cache clean && \
+    rm -rf /root/.cache /root/.npm && \
+    chown -R nextjs:nodejs /app
+
 USER nextjs
 
-# 暴露端口 (仅需要3000端口，SSE服务已整合)
 EXPOSE 3000
 
-# 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
-# 生产启动脚本
+# 添加版本信息到环境变量
+ENV APP_VERSION=${VERSION}
+
 CMD ["sh", "-c", "\
     echo '🚀 启动NodePass生产环境 (整合SSE服务)...' && \
+    echo '📦 当前版本: '${APP_VERSION} && \
     echo '⏳ 等待数据库连接...' && \
     while ! pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-nodepass} -q; do \
         echo '⏳ 等待PostgreSQL启动...' && sleep 2; \
@@ -131,5 +88,5 @@ CMD ["sh", "-c", "\
     echo '📊 运行数据库迁移...' && \
     pnpm exec prisma migrate deploy && \
     echo '🎯 启动整合生产服务...' && \
-    pnpm start:integrated \
+    NODE_ENV=production pnpm start \
 "] 
