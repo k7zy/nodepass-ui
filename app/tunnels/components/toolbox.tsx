@@ -29,7 +29,7 @@ import { EndpointStatus } from '@prisma/client';
 import { addToast } from "@heroui/toast";
 
 interface ApiEndpoint {
-  id: string;
+  id: number;
   name: string;
   url: string;
   status: EndpointStatus;
@@ -65,11 +65,11 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
     const fetchEndpoints = async () => {
       try {
         const response = await fetch('/api/endpoints/simple');
-        if (!response.ok) throw new Error('获取端点列表失败');
+        if (!response.ok) throw new Error('获取主控列表失败');
         const data = await response.json();
         setEndpoints(data);
       } catch (error) {
-        console.error('获取端点列表失败:', error);
+        console.error('获取主控列表失败:', error);
       } finally {
         setEndpointsLoading(false);
       }
@@ -86,9 +86,9 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   ];
 
   const getSelectedEndpointName = () => {
-    if (endpointFilter === "all") return "所有端点";
-    const endpoint = endpoints.find(ep => ep.id === endpointFilter);
-    return endpoint ? endpoint.name : "所有端点";
+    if (endpointFilter === "all") return "所有主控";
+    const endpoint = endpoints.find(ep => String(ep.id) === String(endpointFilter));
+    return endpoint ? endpoint.name : "所有主控";
   };
 
   return (
@@ -98,7 +98,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
         {/* 左侧：标题和搜索框 */}
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center flex-1">
           <Box className="text-lg md:text-xl font-semibold flex-shrink-0">
-            <h1 className="text-xl md:text-2xl font-bold">实例管理</h1>
+            <h1 className="text-xl md:text-2xl font-bold">隧道管理</h1>
           </Box>
           <Box className="flex-1 sm:max-w-xs lg:max-w-sm">
             <Input
@@ -107,7 +107,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               classNames={{
                 inputWrapper: "bg-default-100",
               }}
-              placeholder="搜索实例..."
+              placeholder="搜索隧道..."
               startContent={<FontAwesomeIcon icon={faSearch} className="text-default-400 text-sm" />}
               value={filterValue}
               onClear={() => onClear()}
@@ -139,13 +139,13 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               </Button>
             </DropdownTrigger>
             <DropdownMenu 
-              aria-label="端点过滤"
+              aria-label="主控过滤"
               onAction={(key) => onEndpointFilterChange?.(key as string)}
               selectedKeys={[endpointFilter]}
               selectionMode="single"
               className="max-w-[280px]"
               items={[
-                { key: "all", label: "所有端点", count: endpoints.reduce((total, ep) => total + ep.tunnelCount, 0) },
+                { key: "all", label: "所有主控", count: endpoints.reduce((total, ep) => total + ep.tunnelCount, 0) },
                 ...endpoints.map((endpoint) => ({
                   key: endpoint.id,
                   label: endpoint.name,
@@ -226,7 +226,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             onClick={() => router.push("/tunnels/create")}
             isDisabled={loading}
           >
-            <span className="hidden sm:inline">创建实例</span>
+            <span className="hidden sm:inline">创建隧道</span>
             <span className="sm:hidden">创建</span>
           </Button>
           <Dropdown>

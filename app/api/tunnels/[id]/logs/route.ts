@@ -57,7 +57,7 @@ export async function GET(
       where: {
         endpointId: tunnel.endpointId,
         instanceId: tunnel.instanceId || undefined,
-        eventType: SSEEventType.LOG
+        eventType: SSEEventType.log
       },
       orderBy: {
         createdAt: 'desc'

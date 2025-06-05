@@ -29,6 +29,8 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { EndpointStatus } from '@prisma/client';
+import { addToast } from "@heroui/toast";
+import { buildApiUrl } from '@/lib/utils';
 
 // 添加 Toast 组件
 const Toast = ({ 
@@ -102,7 +104,7 @@ export default function CreateTunnelPage() {
     tunnelPort: "",
     targetAddress: "0.0.0.0",
     targetPort: "",
-    tlsMode: "mode1",
+    tlsMode: "mode0",
     certPath: "",
     keyPath: "",
     logLevel: "info"
@@ -121,18 +123,18 @@ export default function CreateTunnelPage() {
     setToast({ message, type });
   };
 
-  // 获取端点列表
+  // 获取主控列表
   useEffect(() => {
     const fetchEndpoints = async () => {
       try {
-        const response = await fetch('/api/endpoints/simple?excludeFailed=true');
-        if (!response.ok) throw new Error('获取端点列表失败');
+        const response = await fetch(buildApiUrl('/api/endpoints/simple?excludeFailed=true'));
+        if (!response.ok) throw new Error('获取主控列表失败');
         const data = await response.json();
-        console.log('获取到的端点数据:', data);
+        console.log('获取到的主控数据:', data);
         setEndpoints(data);
       } catch (error) {
-        console.error('获取端点列表失败:', error);
-        showToast('获取端点列表失败', 'error');
+        console.error('获取主控列表失败:', error);
+        showToast('获取主控列表失败', 'error');
       } finally {
         setLoading(false);
       }
@@ -162,7 +164,7 @@ export default function CreateTunnelPage() {
 
     setSubmitting(true);
     try {
-      const response = await fetch('/api/tunnels', {
+      const response = await fetch(buildApiUrl('/api/tunnels'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,7 +215,7 @@ export default function CreateTunnelPage() {
       )}
 
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">创建实例</h1>
+        <h1 className="text-2xl font-bold">创建隧道</h1>
         <Button 
           variant="light"
           onClick={() => router.back()}
@@ -224,7 +226,7 @@ export default function CreateTunnelPage() {
 
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
-          <h2 className="text-xl font-semibold">选择 API 端点</h2>
+          <h2 className="text-xl font-semibold">选择 API 主控</h2>
         </CardHeader>
         <Divider />
         <CardBody className="p-6">
@@ -252,7 +254,7 @@ export default function CreateTunnelPage() {
             </div>
           ) : endpoints.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-default-500">暂无可用的 API 端点</p>
+              <p className="text-default-500">暂无可用的 API 主控</p>
               <Button 
                 color="primary" 
                 variant="flat"
@@ -260,7 +262,7 @@ export default function CreateTunnelPage() {
                 className="mt-2"
                 onClick={() => router.push('/endpoints')}
               >
-                去添加端点
+                去添加主控
               </Button>
             </div>
           ) : (
@@ -286,7 +288,7 @@ export default function CreateTunnelPage() {
                       </div>
                       <p className="text-small text-default-500 truncate">{endpoint.url}</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
+                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个隧道</p>
                       </div>
                     </CardBody>
                   </Card>
@@ -553,7 +555,7 @@ export default function CreateTunnelPage() {
             <CardBody>
               <h3 className="text-lg font-semibold mb-4">请确认以下隧道配置：</h3>
               <div className="space-y-2 text-sm">
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 端点：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道模式：</span> {formData.mode === "server" ? "服务器模式" : "客户端模式"}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道名称：</span> {formData.tunnelName}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
@@ -594,7 +596,7 @@ export default function CreateTunnelPage() {
           onClick={handleSubmit}
           isDisabled={submitting}
         >
-          {submitting ? "创建中..." : "创建实例"}
+          {submitting ? "创建中..." : "创建隧道"}
         </Button>
       </div>
     </div>

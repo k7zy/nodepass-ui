@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TunnelStatus, Endpoint } from '@prisma/client';
 import { convertBigIntToNumber, formatTrafficBytes } from '@/lib/utils/traffic';
+import { fetchWithSSLSupport } from '@/lib/utils/fetch';
 
 export async function GET() {
   try {
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
       const endpointUrl = new URL(endpoint.url);
       const apiUrl = `${endpoint.url}${endpoint.apiPath}/v1/instances`;
       
-      const nodepassResponse = await fetch(apiUrl, {
+      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -289,7 +290,7 @@ export async function DELETE(request: NextRequest) {
       console.log(`API Key: ${tunnel.endpoint.apiKey ? '已设置' : '未设置'}`);
       console.log(`===============================`);
       
-      const nodepassResponse = await fetch(apiUrl, {
+      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
         method: 'DELETE',
         headers: {
           'X-API-Key': tunnel.endpoint.apiKey
@@ -387,7 +388,7 @@ export async function PATCH(request: NextRequest) {
       console.log(`API Key: ${tunnel.endpoint.apiKey ? '已设置' : '未设置'}`);
       console.log(`========================`);
       
-      const nodepassResponse = await fetch(apiUrl, {
+      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

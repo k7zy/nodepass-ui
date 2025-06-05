@@ -34,10 +34,16 @@ import {
   faTimesCircle,
   faRotateRight,
   faPlug,
-  faPlugCircleXmark
+  faPlugCircleXmark,
+  faPen,
+  faWifi,
+  faSpinner,
+  faAdd,
+  faLightbulb
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import { Endpoint, EndpointStatus } from '@prisma/client';
+import { buildApiUrl } from "@/lib/utils";
 
 interface EndpointWithRelations extends Endpoint {
   tunnelInstances: Array<{
@@ -76,19 +82,19 @@ export default function EndpointsPage() {
   const {isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange} = useDisclosure();
   const {isOpen: isDeleteOpen, onOpen: onDeleteOpen, onOpenChange: onDeleteOpenChange} = useDisclosure();
 
-  // 获取端点列表
+  // 获取主控列表
   const fetchEndpoints = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/endpoints');
-      if (!response.ok) throw new Error('获取端点列表失败');
+      const response = await fetch(buildApiUrl('/api/endpoints'));
+      if (!response.ok) throw new Error('获取主控列表失败');
       const data = await response.json();
       setEndpoints(data);
       
       return data;
     } catch (error) {
       addToast({
-        title: "获取端点列表失败",
+        title: "获取主控列表失败",
         description: "请检查网络连接后重试",
         color: "danger",
       });
@@ -98,7 +104,7 @@ export default function EndpointsPage() {
     }
   };
 
-  // 应用启动时执行端点列表获取
+  // 应用启动时执行主控列表获取
   useEffect(() => {
     const startupEndpoints = async () => {
       const endpoints = await fetchEndpoints();
@@ -109,7 +115,7 @@ export default function EndpointsPage() {
 
   const handleAddEndpoint = async (data: EndpointFormData) => {
     try {
-      const response = await fetch('/api/endpoints', {
+      const response = await fetch(buildApiUrl('/api/endpoints'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,20 +123,19 @@ export default function EndpointsPage() {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) throw new Error('添加端点失败');
+      if (!response.ok) throw new Error('添加主控失败');
 
       addToast({
-        title: "端点添加成功",
-        description: `${data.name} 已成功添加到端点列表`,
+        title: "主控添加成功",
+        description: `${data.name} 已成功添加到主控列表`,
         color: "success",
       });
 
-      // 刷新端点列表
-      await fetchEndpoints();
-      
+      // 刷新主控列表
+      fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "添加端点失败",
+        title: "添加主控失败",
         description: "请检查输入信息后重试",
         color: "danger",
       });
@@ -146,7 +151,7 @@ export default function EndpointsPage() {
     if (!deleteModalEndpoint) return;
 
     try {
-      const response = await fetch('/api/endpoints', {
+      const response = await fetch(buildApiUrl('/api/endpoints'), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -154,19 +159,19 @@ export default function EndpointsPage() {
         body: JSON.stringify({ id: deleteModalEndpoint.id }),
       });
 
-      if (!response.ok) throw new Error('删除端点失败');
+      if (!response.ok) throw new Error('删除主控失败');
 
       addToast({
-        title: "端点删除成功",
-        description: `${deleteModalEndpoint.name} 已从端点列表中删除`,
+        title: "主控删除成功",
+        description: `${deleteModalEndpoint.name} 已从主控列表中删除`,
         color: "success",
       });
 
-      // 刷新端点列表
+      // 刷新主控列表
       fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "删除端点失败",
+        title: "删除主控失败",
         description: "请稍后重试",
         color: "danger",
       });
@@ -188,7 +193,7 @@ export default function EndpointsPage() {
   const handleReconnect = async (endpointId: number) => {
     try {
       // 调用 PATCH API 进行重连
-      const response = await fetch('/api/endpoints', {
+      const response = await fetch(buildApiUrl('/api/endpoints'), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -208,11 +213,11 @@ export default function EndpointsPage() {
 
       addToast({
         title: "重连成功",
-        description: result.message || "端点重连请求已发送，正在尝试建立连接...",
+        description: result.message || "主控重连请求已发送，正在尝试建立连接...",
         color: "success",
       });
 
-      // 立即刷新端点列表以获取最新状态
+      // 立即刷新主控列表以获取最新状态
       await fetchEndpoints();
 
     } catch (error) {
@@ -227,7 +232,7 @@ export default function EndpointsPage() {
   const handleConnect = async (endpointId: number) => {
     try {
       // 调用 PATCH API 进行连接
-      const response = await fetch('/api/endpoints', {
+      const response = await fetch(buildApiUrl('/api/endpoints'), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -247,11 +252,11 @@ export default function EndpointsPage() {
 
       addToast({
         title: "连接成功",
-        description: result.message || "端点连接请求已发送，正在尝试建立连接...",
+        description: result.message || "主控连接请求已发送，正在尝试建立连接...",
         color: "success",
       });
 
-      // 立即刷新端点列表以获取最新状态
+      // 立即刷新主控列表以获取最新状态
       await fetchEndpoints();
 
     } catch (error) {
@@ -266,7 +271,7 @@ export default function EndpointsPage() {
   const handleDisconnect = async (endpointId: number) => {
     try {
       // 调用 PATCH API 进行断开连接
-      const response = await fetch('/api/endpoints', {
+      const response = await fetch(buildApiUrl('/api/endpoints'), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -286,11 +291,11 @@ export default function EndpointsPage() {
 
       addToast({
         title: "断开连接成功",
-        description: result.message || "端点连接已断开",
+        description: result.message || "主控连接已断开",
         color: "success",
       });
 
-      // 立即刷新端点列表以获取最新状态
+      // 立即刷新主控列表以获取最新状态
       await fetchEndpoints();
 
     } catch (error) {
@@ -302,7 +307,7 @@ export default function EndpointsPage() {
     }
   };
 
-  // 获取端点状态相关信息（直接从数据库数据）
+  // 获取主控状态相关信息（直接从数据库数据）
   const getEndpointDisplayData = (endpoint: FormattedEndpoint) => {
     return {
       status: endpoint.status,
@@ -383,7 +388,7 @@ export default function EndpointsPage() {
               {/* 显示失败状态提示 */}
               {realTimeData.status === EndpointStatus.FAIL && (
                 <div className="p-2 bg-danger-50 rounded-lg">
-                  <p className="text-tiny text-danger-600">端点连接失败，已停止重试</p>
+                  <p className="text-tiny text-danger-600">主控连接失败，已停止重试</p>
                 </div>
               )}
             </div>
@@ -412,12 +417,12 @@ export default function EndpointsPage() {
           <ul className="flex flex-col gap-1">
             <li>
               <Link className="text-default-400" href="#" size="sm">
-                如何配置 API 端点？
+                如何配置 API 主控？
               </Link>
             </li>
             <li>
               <Link className="text-default-400" href="#" size="sm">
-                端点连接失败怎么办？
+                主控连接失败怎么办？
               </Link>
             </li>
             <li>
@@ -491,7 +496,7 @@ export default function EndpointsPage() {
   return (
     <div className="max-w-7xl mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">API 端点管理</h1>
+        <h1 className="text-2xl font-bold">API 主控管理</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -608,7 +613,7 @@ export default function EndpointsPage() {
           })
         )}
 
-        {/* 添加端点卡片 - 仅在非加载状态下显示 */}
+        {/* 添加主控卡片 - 仅在非加载状态下显示 */}
         {!loading && (
           <Card 
             className="relative w-full h-[200px] cursor-pointer hover:shadow-lg transition-shadow border-2 border-dashed border-default-300 hover:border-primary"
@@ -621,8 +626,8 @@ export default function EndpointsPage() {
                   <FontAwesomeIcon icon={faPlus} className="text-xl text-primary" />
                 </div>
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold text-default-700 mb-1">添加 API 端点</h3>
-                  <p className="text-small text-default-500">点击添加新的端点配置</p>
+                  <h3 className="text-lg font-semibold text-default-700 mb-1">添加 API 主控</h3>
+                  <p className="text-small text-default-500">点击添加新的主控配置</p>
                 </div>
               </div>
             </CardBody>
@@ -630,7 +635,7 @@ export default function EndpointsPage() {
         )}
       </div>
 
-      {/* 添加端点模态框 */}
+      {/* 添加主控模态框 */}
       <AddEndpointModal
         isOpen={isAddOpen}
         onOpenChange={onAddOpenChange}
@@ -645,17 +650,17 @@ export default function EndpointsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon icon={faTrash} className="text-danger" />
-                  确认删除端点
+                  确认删除主控
                 </div>
               </ModalHeader>
               <ModalBody>
                 {deleteModalEndpoint && (
                   <>
                     <p className="text-default-600">
-                      您确定要删除端点 <span className="font-semibold text-foreground">"{deleteModalEndpoint.name}"</span> 吗？
+                      您确定要删除主控 <span className="font-semibold text-foreground">"{deleteModalEndpoint.name}"</span> 吗？
                     </p>
                     <p className="text-small text-warning">
-                      ⚠️ 此操作不可撤销，端点的所有配置都将被永久删除。
+                      ⚠️ 此操作不可撤销，主控的所有配置都将被永久删除。
                     </p>
                   </>
                 )}

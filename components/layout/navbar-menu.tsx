@@ -24,7 +24,7 @@ const navigationItems = [
   },
   {
     href: "/endpoints",
-    label: "端点管理",
+    label: "主控管理",
     icon: "solar:server-2-bold",
   },
 ];

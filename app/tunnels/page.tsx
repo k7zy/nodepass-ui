@@ -102,7 +102,7 @@ export default function TunnelsPage() {
   const columns = [
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
-    { key: "endpoint", label: "端点" },
+    { key: "endpoint", label: "主控" },
     { key: "tunnelAddress", label: "隧道地址" },
     { key: "targetAddress", label: "目标地址" },
     { key: "status", label: "状态" },
@@ -226,7 +226,8 @@ export default function TunnelsPage() {
 
     if (endpointFilter !== "all") {
       filtered = filtered.filter(item => {
-        return item.endpointId === endpointFilter;
+        // 确保类型匹配：将两个值都转换为字符串进行比较
+        return String(item.endpointId) === String(endpointFilter);
       });
     }
 
@@ -453,10 +454,10 @@ export default function TunnelsPage() {
                       </Chip>
                     </div>
 
-                    {/* 端点信息 */}
+                    {/* 主控信息 */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-default-500 w-12 flex-shrink-0">端点:</span>
+                        <span className="text-xs text-default-500 w-12 flex-shrink-0">主控:</span>
                         <Chip 
                           variant="bordered" 
                           color="default"
@@ -610,7 +611,7 @@ export default function TunnelsPage() {
                   <span>统计中...</span>
                 </div>
               ) : (
-                `共 ${filteredItems.length} 个实例`
+                `共 ${filteredItems.length} 个隧道`
               )}
             </Box>
             <div className="order-1 sm:order-2">
@@ -653,10 +654,10 @@ export default function TunnelsPage() {
                 {deleteModalTunnel && (
                   <>
                     <p className="text-default-600">
-                      您确定要删除实例 <span className="font-semibold text-foreground">"{deleteModalTunnel.name}"</span> 吗？
+                      您确定要删除隧道 <span className="font-semibold text-foreground">"{deleteModalTunnel.name}"</span> 吗？
                     </p>
                     <p className="text-small text-warning">
-                      ⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。
+                      ⚠️ 此操作不可撤销，隧道的所有配置和数据都将被永久删除。
                     </p>
                   </>
                 )}

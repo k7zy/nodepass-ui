@@ -30,6 +30,9 @@ import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useRouter } from "next/navigation";
 import { EndpointStatus } from '@prisma/client';
 import { useGlobalSSE, useDashboardSSE } from '@/lib/hooks/use-sse';
+import { formatDistanceToNow } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
+import { buildApiUrl } from '@/lib/utils';
 
 // 统计数据类型
 interface TunnelStats {
@@ -143,7 +146,7 @@ export default function DashboardPage() {
   // 获取隧道统计数据
   const fetchTunnelStats = async () => {
     try {
-      const response = await fetch('/api/tunnels/simple');
+      const response = await fetch(buildApiUrl('/api/tunnels/simple'));
       if (!response.ok) throw new Error('获取隧道数据失败');
       const tunnels: TunnelInstance[] = await response.json();
       
@@ -163,7 +166,7 @@ export default function DashboardPage() {
   // 获取端点数据
   const fetchEndpoints = async () => {
     try {
-      const response = await fetch('/api/endpoints/simple');
+      const response = await fetch(buildApiUrl('/api/endpoints/simple'));
       if (!response.ok) throw new Error('获取端点数据失败');
       const data: Endpoint[] = await response.json();
       setEndpoints(data);
@@ -175,7 +178,7 @@ export default function DashboardPage() {
   // 获取操作日志数据
   const fetchOperationLogs = async () => {
     try {
-      const response = await fetch('/api/tunnel-logs?limit=50');
+      const response = await fetch(buildApiUrl('/api/tunnel-logs?limit=50'));
       if (!response.ok) throw new Error('获取操作日志失败');
       const data: OperationLog[] = await response.json();
       setOperationLogs(data);
@@ -188,7 +191,7 @@ export default function DashboardPage() {
   const fetchTrafficTrend = async () => {
     try {
       setTrafficLoading(true);
-      const response = await fetch('/api/dashboard/traffic-trend');
+      const response = await fetch(buildApiUrl('/api/dashboard/traffic-trend'));
       if (!response.ok) throw new Error('获取流量趋势数据失败');
       
       const result = await response.json();
@@ -430,7 +433,7 @@ export default function DashboardPage() {
 
         {/* API 端点列表 - 在移动端独占一行，桌面端占1列 */}
         <Card className="p-2 min-h-[300px] lg:h-[400px]">
-          <CardHeader className="font-bold text-sm md:text-base">API 端点</CardHeader>
+          <CardHeader className="font-bold text-sm md:text-base">API 主控</CardHeader>
           <Divider />
           <CardBody className="p-0">
             <div className="h-full max-h-[250px] lg:max-h-none overflow-y-auto p-3 md:p-4 space-y-2">
@@ -472,7 +475,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="text-xs text-default-400">
-                        {endpoint.tunnelCount} 个实例
+                        {endpoint.tunnelCount} 个隧道
                       </div>
                     </div>
                   </Card>
@@ -495,7 +498,7 @@ export default function DashboardPage() {
               hideHeader
               classNames={{
                 base: "overflow-visible",
-                table: "min-h-[200px]",
+                table: operationLogs.length === 0 ? "min-h-[120px]" : "", // 只在无数据时设置最小高度
                 tbody: "[&>tr]:border-b [&>tr]:border-divider last:[&>tr]:border-0",
                 tr: "hover:bg-default-50 transition-colors",
                 td: "py-3 text-xs md:text-sm"
@@ -508,53 +511,49 @@ export default function DashboardPage() {
                   </TableColumn>
                 ))}
               </TableHeader>
-              <TableBody>
-                {operationLogs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4}>
-                      <div className="text-center py-8">
-                        <span className="text-default-500 text-xs md:text-sm">
-                          {loading ? "加载中..." : "暂无操作记录"}
-                        </span>
+              <TableBody 
+                emptyContent={
+                  <div className="text-center py-8">
+                    <span className="text-default-500 text-xs md:text-sm">
+                      {loading ? "加载中..." : "暂无操作记录"}
+                    </span>
+                  </div>
+                }
+              >
+                {operationLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="min-w-0">
+                      <div className="text-xs md:text-sm">
+                        {new Date(log.time).toLocaleString('zh-CN', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </div>
                     </TableCell>
+                    <TableCell className="min-w-0">
+                      <div className="truncate text-xs md:text-sm">{log.action}</div>
+                    </TableCell>
+                    <TableCell className="min-w-0">
+                      <div className="truncate text-xs md:text-sm">{log.instance}</div>
+                    </TableCell>
+                    <TableCell className="min-w-0">
+                      <Chip
+                        color={log.status.type}
+                        size="sm"
+                        variant="flat"
+                        startContent={<Icon icon={log.status.icon} width={12} className="md:w-3.5 md:h-3.5" />}
+                        classNames={{
+                          base: "text-xs max-w-full",
+                          content: "truncate"
+                        }}
+                      >
+                        {log.status.text}
+                      </Chip>
+                    </TableCell>
                   </TableRow>
-                ) : (
-                  operationLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="min-w-0">
-                        <div className="text-xs md:text-sm">
-                          {new Date(log.time).toLocaleString('zh-CN', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                      </TableCell>
-                      <TableCell className="min-w-0">
-                        <div className="truncate text-xs md:text-sm">{log.action}</div>
-                      </TableCell>
-                      <TableCell className="min-w-0">
-                        <div className="truncate text-xs md:text-sm">{log.instance}</div>
-                      </TableCell>
-                      <TableCell className="min-w-0">
-                        <Chip
-                          color={log.status.type}
-                          size="sm"
-                          variant="flat"
-                          startContent={<Icon icon={log.status.icon} width={12} className="md:w-3.5 md:h-3.5" />}
-                          classNames={{
-                            base: "text-xs max-w-full",
-                            content: "truncate"
-                          }}
-                        >
-                          {log.status.text}
-                        </Chip>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
           </div>

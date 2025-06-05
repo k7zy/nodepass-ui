@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { buildApiUrl } from '@/lib/utils';
 
 interface User {
   username: string;
@@ -47,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch(buildApiUrl('/api/auth/me'));
       console.log('🔍 身份验证检查响应', { 
         status: response.status, 
         ok: response.ok 
@@ -74,7 +75,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     console.log('👋 开始登出流程');
     try {
-      await fetch('/api/auth/logout', {
+      await fetch(buildApiUrl('/api/auth/logout'), {
         method: 'POST',
       });
       console.log('✅ 登出请求完成');

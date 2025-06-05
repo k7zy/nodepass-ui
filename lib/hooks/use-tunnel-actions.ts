@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { addToast } from "@heroui/toast";
 import { useRouter } from "next/navigation";
+import { buildApiUrl } from '@/lib/utils';
 
 export interface TunnelActionOptions {
   tunnelId: string;
@@ -24,7 +25,7 @@ export const useTunnelActions = () => {
         title: `正在${actionText}实例...`,
         description: tunnelName ? `${actionText} ${tunnelName}` : "请稍候",
         color: "primary",
-        promise: fetch(`/api/tunnels/${tunnelId}/status`, {
+        promise: fetch(buildApiUrl(`/api/tunnels/${tunnelId}/status`), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -79,7 +80,7 @@ export const useTunnelActions = () => {
         title: "正在重启实例...",
         description: tunnelName ? `重启 ${tunnelName}` : "请稍候",
         color: "primary",
-        promise: fetch(`/api/tunnels/${tunnelId}/status`, {
+        promise: fetch(buildApiUrl(`/api/tunnels/${tunnelId}/status`), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -134,7 +135,7 @@ export const useTunnelActions = () => {
         title: "正在删除实例...",
         description: tunnelName ? `删除 ${tunnelName}` : "请稍候",
         color: "primary",
-        promise: fetch(`/api/tunnels/${tunnelId}`, {
+        promise: fetch(buildApiUrl(`/api/tunnels/${tunnelId}`), {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',

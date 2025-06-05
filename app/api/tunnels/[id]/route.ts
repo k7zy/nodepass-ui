@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logTunnelOperation } from '@/lib/operation-log';
 import { convertBigIntToNumber } from "@/lib/utils";
+import { fetchWithSSLSupport } from '@/lib/utils/fetch';
 
 // PATCH /api/tunnels/[instanceId] - 更新隧道状态（启动/停止/重启）
 export async function PATCH(
@@ -153,7 +154,7 @@ export async function DELETE(
       const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${tunnel.instanceId}`;
 
       // 调用 NodePass API 删除实例
-      const nodepassResponse = await fetch(apiUrl, {
+      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

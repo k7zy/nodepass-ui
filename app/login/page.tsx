@@ -14,6 +14,9 @@ import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLock, faUser, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '@/app/components/auth-provider';
+import { addToast } from "@heroui/toast";
+import { Icon } from "@iconify/react";
+import { buildApiUrl } from '@/lib/utils';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,7 +37,7 @@ export default function LoginPage() {
     console.log('🔐 开始登录流程', { username: formData.username });
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(buildApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

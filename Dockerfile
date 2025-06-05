@@ -1,5 +1,5 @@
-# NodePass WebUI - 双服务Docker镜像
-# 支持前端(Next.js)和后端(SSE服务)同时运行
+# NodePass WebUI - 整合SSE服务的Docker镜像
+# Next.js应用内置SSE服务，单端口运行
 
 FROM node:18-alpine AS base
 
@@ -39,8 +39,8 @@ COPY . .
 # 生成 Prisma 客户端
 RUN pnpm exec prisma generate
 
-# 暴露端口
-EXPOSE 3000 3001
+# 暴露端口 (仅需要3000端口，SSE服务已整合)
+EXPOSE 3000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -48,7 +48,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # 开发启动脚本
 CMD ["sh", "-c", "\
-    echo '🚀 启动NodePass开发环境...' && \
+    echo '🚀 启动NodePass开发环境 (整合SSE服务)...' && \
     echo '⏳ 等待数据库连接...' && \
     while ! pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-nodepass} -q; do \
         echo '⏳ 等待PostgreSQL启动...' && sleep 2; \
@@ -57,8 +57,8 @@ CMD ["sh", "-c", "\
     pnpm exec prisma migrate deploy && \
     echo '🌱 生成Prisma客户端...' && \
     pnpm exec prisma generate && \
-    echo '🎯 启动前端和后端服务...' && \
-    pnpm dev:all \
+    echo '🎯 启动整合服务 (Next.js + SSE)...' && \
+    pnpm dev:integrated \
 "]
 
 # ================================
@@ -76,8 +76,8 @@ COPY . .
 # 生成 Prisma 客户端
 RUN pnpm exec prisma generate
 
-# 构建前端和后端
-RUN pnpm build:all
+# 构建应用
+RUN pnpm build
 
 # ================================
 # 生产环境
@@ -87,12 +87,21 @@ FROM base AS production
 # 安装生产依赖和必要的CLI工具
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod && \
-    pnpm add prisma --save-dev
+    pnpm add prisma tsx --save-dev
 
-# 复制构建产物
-COPY --from=builder /app/dist ./dist
+# 复制构建产物和必要文件
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/server.ts ./server.ts
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/app ./app
+COPY --from=builder /app/components ./components
+COPY --from=builder /app/styles ./styles
+COPY --from=builder /app/config ./config
+COPY --from=builder /app/types ./types
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/next.config.js ./next.config.js
 
 # 生成 Prisma 客户端（生产环境）
 RUN pnpm exec prisma generate
@@ -105,8 +114,8 @@ RUN addgroup -g 1001 -S nodejs && \
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 
-# 暴露端口
-EXPOSE 3000 3001
+# 暴露端口 (仅需要3000端口，SSE服务已整合)
+EXPOSE 3000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -114,14 +123,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # 生产启动脚本
 CMD ["sh", "-c", "\
-    echo '🚀 启动NodePass生产环境...' && \
+    echo '🚀 启动NodePass生产环境 (整合SSE服务)...' && \
     echo '⏳ 等待数据库连接...' && \
     while ! pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-nodepass} -q; do \
         echo '⏳ 等待PostgreSQL启动...' && sleep 2; \
     done && \
     echo '📊 运行数据库迁移...' && \
     pnpm exec prisma migrate deploy && \
-    echo '🎯 启动生产服务...' && \
-    node dist/scripts/start-sse-service.js & \
-    node dist/frontend/server.js \
+    echo '🎯 启动整合生产服务...' && \
+    pnpm start:integrated \
 "] 

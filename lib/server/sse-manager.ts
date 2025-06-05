@@ -16,8 +16,10 @@ interface Subscriber {
   instanceId?: string; // 只保留instanceId
 }
 
+// 全局符号用于确保真正的单例
+const SSE_MANAGER_SYMBOL = Symbol.for('nodepass.sse.manager');
+
 export class SSEManager {
-  private static instance: SSEManager;
   private subscribers: Map<string, Subscriber>;
   private eventEmitter: EventEmitter;
 
@@ -25,13 +27,22 @@ export class SSEManager {
     this.subscribers = new Map();
     this.eventEmitter = new EventEmitter();
     this.eventEmitter.setMaxListeners(100);
+    
+    console.log('[SSE-Manager] 新的SSEManager实例已创建');
   }
 
   public static getInstance(): SSEManager {
-    if (!SSEManager.instance) {
-      SSEManager.instance = new SSEManager();
+    // 使用全局符号确保跨模块共享同一个实例
+    const globalThis = global as any;
+    
+    if (!globalThis[SSE_MANAGER_SYMBOL]) {
+      console.log('[SSE-Manager] 创建全局SSEManager单例实例');
+      globalThis[SSE_MANAGER_SYMBOL] = new SSEManager();
+    } else {
+      console.log('[SSE-Manager] 使用现有的全局SSEManager实例');
     }
-    return SSEManager.instance;
+    
+    return globalThis[SSE_MANAGER_SYMBOL];
   }
 
   // 添加订阅者 - 简化为只使用instanceId
@@ -51,7 +62,8 @@ export class SSEManager {
     console.log(`[SSE-Manager] 新订阅者已添加: ${id}`, {
       type,
       instanceId,
-      总订阅者数量: this.subscribers.size
+      总订阅者数量: this.subscribers.size,
+      实例标识: this.constructor.name + '@' + this.hashCode()
     });
   }
 
@@ -71,8 +83,13 @@ export class SSEManager {
     let sentCount = 0;
     for (const [_, subscriber] of this.subscribers) {
       if (subscriber.type === SSEEventTypes.GLOBAL) {
-        subscriber.controller.enqueue(encoder.encode(message));
-        sentCount++;
+        try {
+          subscriber.controller.enqueue(encoder.encode(message));
+          sentCount++;
+        } catch (error) {
+          console.error(`[SSE-Manager] 全局广播发送失败，移除订阅者: ${subscriber.id}`, error);
+          this.removeSubscriber(subscriber.id);
+        }
       }
     }
     
@@ -84,7 +101,8 @@ export class SSEManager {
     console.log(`[SSE-Manager] 尝试推送隧道更新`, {
       目标instanceId: instanceId,
       数据类型: rawData.type,
-      当前订阅者总数: this.subscribers.size
+      当前订阅者总数: this.subscribers.size,
+      实例标识: this.constructor.name + '@' + this.hashCode()
     });
 
     const encoder = new TextEncoder();
@@ -134,11 +152,16 @@ export class SSEManager {
     let sentCount = 0;
     for (const [_, subscriber] of this.subscribers) {
       if (subscriber.type === SSEEventTypes.DASHBOARD) {
-        const encoder = new TextEncoder();
-        subscriber.controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
-        );
-        sentCount++;
+        try {
+          const encoder = new TextEncoder();
+          subscriber.controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+          );
+          sentCount++;
+        } catch (error) {
+          console.error(`[SSE-Manager] 仪表盘更新发送失败，移除订阅者: ${subscriber.id}`, error);
+          this.removeSubscriber(subscriber.id);
+        }
       }
     }
     
@@ -151,7 +174,8 @@ export class SSEManager {
       total: this.subscribers.size,
       global: 0,
       tunnel: 0,
-      dashboard: 0
+      dashboard: 0,
+      instanceId: this.hashCode() // 添加实例标识符
     };
 
     for (const [_, subscriber] of this.subscribers) {
@@ -173,12 +197,20 @@ export class SSEManager {
 
   // 调试方法：列出所有订阅者
   public listSubscribers() {
-    console.log(`[SSE-Manager] 当前订阅者列表 (总数: ${this.subscribers.size}):`);
+    console.log(`[SSE-Manager] 当前订阅者列表 (总数: ${this.subscribers.size}, 实例: ${this.hashCode()}):`);
     for (const [id, subscriber] of this.subscribers) {
       console.log(`  - ${id}: ${subscriber.type}${subscriber.instanceId ? ` (instance: ${subscriber.instanceId})` : ''}`);
     }
   }
+
+  // 实例标识符，用于调试
+  private hashCode(): string {
+    return Math.abs(this.toString().split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0)).toString(16).substr(0, 8);
+  }
 }
 
-// 导出单例实例
+// 导出全局单例实例
 export const sseManager = SSEManager.getInstance(); 

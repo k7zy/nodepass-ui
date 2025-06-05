@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TunnelStatus } from "@prisma/client";
 import { convertBigIntToNumber } from "@/lib/utils";
+import { fetchWithSSLSupport } from '@/lib/utils/fetch';
 
 // PATCH /api/tunnels/[id]/status - 更新隧道状态（启动/停止/重启）
 export async function PATCH(
@@ -56,7 +57,7 @@ export async function PATCH(
       const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${tunnel.instanceId}`;
 
       // 调用 NodePass API
-      const nodepassResponse = await fetch(apiUrl, {
+      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

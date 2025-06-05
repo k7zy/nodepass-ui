@@ -31,7 +31,7 @@ services:
         reservations:
           memory: 256M
 
-  # NodePass 应用 - 双服务容器
+  # NodePass 应用 - 整合SSE服务的单一容器
   app:
     build:
       context: .
@@ -44,17 +44,14 @@ services:
       # 应用配置
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
       - NODE_ENV=${NODE_ENV:-development}
-      # 网络配置
-      - CORS_ORIGIN=http://localhost:3000
-      - NEXT_PUBLIC_SSE_API_URL=http://localhost:3001
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+      # 网络配置 (SSE服务已整合到同一端口)
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3000}
       # PostgreSQL 连接参数
       - POSTGRES_USER=${POSTGRES_USER:-nodepass}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nodepass123}
       - POSTGRES_DB=${POSTGRES_DB:-nodepass}
     ports:
-      - "3000:3000"  # 前端 Next.js
-      - "3001:3001"  # 后端 SSE 服务
+      - "3000:3000"  # 整合的Next.js应用 (包含SSE服务)
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,12 +67,12 @@ services:
     stdin_open: true
     tty: true
     # 资源限制
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1G
+    #     reservations:
+    #       memory: 512M
     # 健康检查
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]

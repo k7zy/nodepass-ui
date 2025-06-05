@@ -449,108 +449,59 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   });
   
-  // 使用隧道SSE监听更新 - 只有在隧道信息加载完成后才订阅
-  React.useEffect(() => {
-    if (!tunnelInfo?.instanceId) {
-      console.log('[前端SSE] 隧道信息不完整，跳过SSE订阅', {
-        instanceId: tunnelInfo?.instanceId
-      });
-      return;
+  // 使用隧道SSE监听更新 - 使用统一的SSE hook
+  useTunnelSSE(tunnelInfo?.instanceId || '', {
+    onMessage: (data) => {
+      console.log('[前端SSE] 收到隧道SSE消息', data);
+      
+      // 处理log类型的事件
+      if (data.type === 'log' && data.logs) {
+        // 使用递增计数器确保唯一ID
+        logCounterRef.current += 1;
+        const newLog = {
+          id: logCounterRef.current,
+          message: processAnsiColors(data.logs), // 使用ANSI颜色处理函数
+          isHtml: true, // 启用HTML格式渲染
+          traffic: {
+            tcpRx: data.instance?.tcprx || 0,
+            tcpTx: data.instance?.tcptx || 0,
+            udpRx: data.instance?.udprx || 0,
+            udpTx: data.instance?.udptx || 0
+          },
+          timestamp: new Date(data.time || Date.now())
+        };
+        
+        // 将新日志追加到控制台
+        setLogs(prev => [newLog, ...prev].slice(0, 100));
+        
+        // 滚动到底部显示最新日志
+        setTimeout(scrollToBottom, 50);
+        
+        console.log('[前端SSE] 处理log事件', {
+          原始日志内容: data.logs,
+          处理后日志内容: newLog.message,
+          流量数据: newLog.traffic,
+          日志ID: newLog.id
+        });
+      }
+      // 处理其他类型的事件 - 延迟更新页面数据
+      else if (data.type && data.type !== 'log') {
+        console.log('[前端SSE] 收到非log事件，准备延迟更新页面数据', {
+          事件类型: data.type,
+          事件数据: data
+        });
+        
+        // 调用延迟更新函数
+        scheduleDataUpdate();
+      }
+    },
+    onError: (error) => {
+      console.error('[前端SSE] 隧道SSE连接错误', error);
+    },
+    onConnected: () => {
+      console.log('[前端SSE] 隧道SSE连接成功');
     }
-
-    // 连接到SSE后端服务而不是Next.js应用
-    const sseUrl = `http://localhost:3001/sse/tunnel/${tunnelInfo.instanceId}`;
-    console.log('[前端SSE] 开始建立SSE连接到后端服务', {
-      url: sseUrl,
-      instanceId: tunnelInfo.instanceId
-    });
-
-    const eventSource = new EventSource(sseUrl);
-
-    eventSource.onmessage = (event) => {
-      console.log('[前端SSE] 收到SSE后端服务的消息', {
-        原始数据: event.data,
-        时间戳: new Date().toISOString()
-      });
-      
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[前端SSE] 解析后的数据', data);
-        
-        // 检查是否是空对象确认消息
-        if (Object.keys(data).length === 0) {
-          console.log('[前端SSE] ✅ 收到SSE后端服务连接确认消息');
-          return;
-        }
-        
-        // 处理log类型的事件
-        if (data.type === 'log' && data.logs) {
-          // 使用递增计数器确保唯一ID
-          logCounterRef.current += 1;
-          const newLog = {
-            id: logCounterRef.current,
-            message: processAnsiColors(data.logs), // 使用ANSI颜色处理函数
-            isHtml: true, // 启用HTML格式渲染
-            traffic: {
-              tcpRx: data.instance?.tcprx || 0,
-              tcpTx: data.instance?.tcptx || 0,
-              udpRx: data.instance?.udprx || 0,
-              udpTx: data.instance?.udptx || 0
-            },
-            timestamp: new Date(data.time || Date.now())
-          };
-          
-          // 将新日志追加到控制台
-          setLogs(prev => [newLog, ...prev].slice(0, 100));
-          
-          // 滚动到底部显示最新日志
-          setTimeout(scrollToBottom, 50);
-          
-          console.log('[前端SSE] 处理log事件', {
-            原始日志内容: data.logs,
-            处理后日志内容: newLog.message,
-            流量数据: newLog.traffic,
-            日志ID: newLog.id
-          });
-        }
-        // 处理其他类型的事件 - 延迟更新页面数据
-        else if (data.type && data.type !== 'log') {
-          console.log('[前端SSE] 收到非log事件，准备延迟更新页面数据', {
-            事件类型: data.type,
-            事件数据: data
-          });
-          
-          // 调用延迟更新函数
-          scheduleDataUpdate();
-        }
-      } catch (error) {
-        console.error('[前端SSE] ❌ 解析SSE数据失败', error, '原始数据:', event.data);
-      }
-    };
-
-    eventSource.onopen = (event) => {
-      console.log('[前端SSE] ✅ SSE连接到后端服务已打开', event);
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('[前端SSE] ❌ SSE后端服务连接错误', error);
-      console.log('[前端SSE] EventSource状态', {
-        readyState: eventSource.readyState,
-        url: eventSource.url
-      });
-    };
-
-    return () => {
-      console.log('[前端SSE] 🔌 关闭SSE后端服务连接');
-      eventSource.close();
-      
-      // 清理延迟更新定时器
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-        updateTimeoutRef.current = null;
-      }
-    };
-  }, [tunnelInfo?.instanceId, scheduleDataUpdate]);
+  });
 
   const handleToggleStatus = () => {
     if (!tunnelInfo) return;

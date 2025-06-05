@@ -74,7 +74,7 @@ export default function AddEndpointModal({
 
       addToast({
         title: "连接测试成功",
-        description: "端点连接正常，可以正常接收 SSE 事件",
+        description: "主控连接正常，可以正常接收 SSE 事件",
         color: "success",
       });
 
@@ -122,11 +122,11 @@ export default function AddEndpointModal({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              添加 API 端点
+              添加 API 主控
             </ModalHeader>
             <ModalBody className="px-6 pb-6">
               <div className="flex flex-col items-start">
-                <p className="text-large font-semibold">端点配置</p>
+                <p className="text-large font-semibold">主控配置</p>
                 <div className="flex gap-4 py-4">
                   <Badge
                     showOutline
@@ -154,26 +154,26 @@ export default function AddEndpointModal({
                     />
                   </Badge>
                   <div className="flex flex-col items-start justify-center">
-                    <p className="font-medium">新建 API 端点</p>
+                    <p className="font-medium">新建 API 主控</p>
                     <span className="text-small text-default-500">用于管理隧道实例</span>
                   </div>
                 </div>
                 <p className="text-small text-default-400 mb-6">
-                  配置新的 API 端点以连接和管理您的隧道实例。请确保所有信息准确无误。
+                  配置新的 API 主控以连接和管理您的隧道实例。请确保所有信息准确无误。
                 </p>
               </div>
 
               <Form validationBehavior="native" onSubmit={handleSubmit}>
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
-                  {/* 端点名称 */}
+                  {/* 主控名称 */}
                   <Input
                     isRequired
                     name="name"
-                    label="端点名称"
+                    label="主控名称"
                     labelPlacement="outside"
                     placeholder="主服务器"
                     maxLength={30}
-                    description="端点的显示名称"
+                    description="主控的显示名称"
                     value={formData.name}
                     onValueChange={(value) => handleInputChange('name', value)}
                   />
@@ -259,7 +259,7 @@ export default function AddEndpointModal({
                     radius="full" 
                     type="submit"
                   >
-                    添加端点
+                    添加主控
                   </Button>
                 </div>
               </Form>

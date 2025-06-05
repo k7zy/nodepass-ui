@@ -6,6 +6,35 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * 构建内部 API 的完整 URL
+ * 在云端部署时使用环境变量配置的基础URL，本地开发使用相对路径
+ */
+export function buildApiUrl(path: string): string {
+  // 如果已经是完整URL，直接返回
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // 确保路径以 / 开头
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+  
+  // 在浏览器环境中
+  if (typeof window !== 'undefined') {
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (baseUrl) {
+      return `${baseUrl}${path}`;
+    }
+    // 如果没有配置基础URL，使用当前域名
+    return `${window.location.origin}${path}`;
+  }
+  
+  // 在服务器环境中，直接返回路径（由Next.js处理）
+  return path;
+}
+
 // 实例缓存
 const instanceCache = new Map<string, { data: Instance; timestamp: number }>();
 const CACHE_TTL = 60000; // 1分钟缓存时间

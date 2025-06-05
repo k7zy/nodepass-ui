@@ -2,6 +2,114 @@
 
 NodePass WebUI 提供了完整的 Docker 化解决方案，支持快速部署和一键启动。
 
+## 🏗️ 架构概述
+
+NodePass WebUI 采用**整合架构**设计：
+- **单端口运行**: 只使用 3000 端口
+- **SSE服务整合**: SSE服务直接运行在 Next.js 应用内
+- **简化部署**: 更简单的配置和管理
+- **性能优化**: 减少网络开销和延迟
+
+## 🚀 快速开始
+
+### 方式一：使用预构建镜像（推荐）
+
+```bash
+# 1. 下载 Docker Compose 文件
+wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml
+
+# 2. 创建环境变量文件
+cat > .env << EOF
+POSTGRES_USER=nodepass
+POSTGRES_PASSWORD=your_secure_password
+POSTGRES_DB=nodepass
+JWT_SECRET=your_super_secret_jwt_key
+NODE_ENV=production
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000  # 云端部署时改为实际域名
+EOF
+
+# 3. 启动服务
+docker-compose -f docker-compose.release.yml up -d
+
+# 4. 访问应用
+# http://localhost:3000
+```
+
+### 方式二：本地构建
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/Mecozea/nodepass-webui.git
+cd nodepass-webui
+
+# 2. 启动整合模式
+pnpm docker:up:integrated
+
+# 3. 查看日志
+pnpm docker:logs
+
+# 4. 访问应用
+# http://localhost:3000
+```
+
+## 📋 可用脚本
+
+```bash
+pnpm docker:up:integrated      # 启动整合模式 (后台)
+pnpm docker:up                 # 启动整合模式 (后台)
+pnpm docker:logs               # 查看应用日志
+pnpm docker:restart            # 重启应用
+pnpm docker:down               # 停止服务
+pnpm docker:build              # 构建镜像
+```
+
+## ⚙️ 环境配置
+
+### 环境变量文件 (`env.docker` 或 `.env`)
+```bash
+# 数据库配置
+POSTGRES_USER=nodepass
+POSTGRES_PASSWORD=nodepass123
+POSTGRES_DB=nodepass
+
+# 应用配置
+JWT_SECRET=docker-super-secret-jwt-key-change-in-production
+NODE_ENV=production
+
+# 网络配置
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+```
+
+### 环境变量说明
+
+| 变量名 | 描述 | 默认值 | 必需 |
+|--------|------|--------|------|
+| `DATABASE_URL` | PostgreSQL连接字符串 | 自动生成 | ✅ |
+| `POSTGRES_USER` | 数据库用户名 | `nodepass` | ✅ |
+| `POSTGRES_PASSWORD` | 数据库密码 | `nodepass123` | ✅ |
+| `POSTGRES_DB` | 数据库名称 | `nodepass` | ✅ |
+| `JWT_SECRET` | JWT密钥 | - | ✅ |
+| `NODE_ENV` | 运行环境 | `development` | ❌ |
+| `NEXT_PUBLIC_API_BASE_URL` | API基础URL | `http://localhost:3000` | ❌ |
+
+> ⚠️ **云端部署重要提示**: 部署到云端服务器时，**必须**设置 `NEXT_PUBLIC_API_BASE_URL` 为实际的域名，例如：
+> - `NEXT_PUBLIC_API_BASE_URL=https://nodepass.yourdomain.com`
+> - `NEXT_PUBLIC_API_BASE_URL=http://your-server-ip:3000`
+
+## 🔧 服务配置
+
+### 端口映射
+
+| 服务 | 容器端口 | 主机端口 | 说明 |
+|------|----------|----------|------|
+| Next.js + SSE | 3000 | 3000 | 整合的Web应用 |
+| PostgreSQL | 5432 | 5432 | 数据库服务 |
+
+### Docker Compose 配置
+
+- **开发环境**: `docker-compose.yml` - 本地构建和开发
+- **生产环境**: `docker-compose.release.yml` - 使用预构建镜像
+
 ## 📦 可用镜像
 
 ### GitHub Container Registry
@@ -9,170 +117,131 @@ NodePass WebUI 提供了完整的 Docker 化解决方案，支持快速部署和
 我们提供预构建镜像：
 
 ```bash
-# 最新版本 (v1.0.0)
+# 最新版本
 docker pull ghcr.io/mecozea/nodepass-webui:latest
+
+# 特定版本
+docker pull ghcr.io/mecozea/nodepass-webui:v1.0.0
 ```
 
-## 🚀 快速开始
-
-### 方式一：使用预构建镜像（推荐）
-
-1. **下载 Docker Compose 文件**
-   ```bash
-   wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.yml
-   ```
-
-2. **创建环境变量文件**
-   ```bash
-   cat > .env << EOF
-   POSTGRES_USER=nodepass
-   POSTGRES_PASSWORD=your_secure_password_here
-   POSTGRES_DB=nodepass
-   JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-   NODE_ENV=production
-   EOF
-   ```
-
-3. **启动服务**
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **访问应用**
-   - 前端界面: http://localhost:3000
-   - 后端SSE服务: http://localhost:3001
-   - 健康检查: http://localhost:3000/api/health
-
-### 方式二：本地构建
-
-```bash
-# 克隆项目
-git clone https://github.com/Mecozea/nodepass-webui.git
-cd nodepass-webui
-
-# 构建并启动
-docker-compose up -d
-```
-
-## ⚙️ 环境变量配置
-
-| 变量名 | 默认值 | 说明 |
-|--------|--------|------|
-| `DATABASE_URL` | 自动生成 | PostgreSQL 连接字符串 |
-| `POSTGRES_USER` | `nodepass` | 数据库用户名 |
-| `POSTGRES_PASSWORD` | `nodepass123` | 数据库密码 |
-| `POSTGRES_DB` | `nodepass` | 数据库名称 |
-| `JWT_SECRET` | 自动生成 | JWT 密钥 (生产环境必须修改) |
-| `NODE_ENV` | `production` | 运行环境 |
-| `CORS_ORIGIN` | `http://localhost:3000` | CORS 允许的源 |
-| `NEXT_PUBLIC_SSE_API_URL` | `http://localhost:3001` | SSE 服务地址 |
-
-## 🐳 服务端口
-
-| 服务 | 容器端口 | 主机端口 | 说明 |
-|------|----------|----------|------|
-| 前端应用 | 3000 | 3000 | Next.js Web 应用 |
-| SSE 服务 | 3001 | 3001 | 实时事件推送服务 |
-| 数据库 | 5432 | 5432 | PostgreSQL 数据库 |
-
-## 📊 健康检查
-
-应用内置了完整的健康检查功能：
-
-```bash
-# 检查容器健康状态
-docker inspect --format='{{.State.Health.Status}}' nodepass-app
-
-# 访问健康检查端点
-curl http://localhost:3000/api/health
-```
-
-健康检查包括：
-- ✅ 数据库连接状态
-- ✅ 内存使用情况
-- ✅ 应用运行时间
-- ✅ 前后端服务状态
-
-## 🔧 故障排除
+## 🐛 故障排除
 
 ### 常见问题
 
-#### 1. 数据库连接失败
+#### 1. 端口冲突
+```bash
+# 检查端口占用
+netstat -tulpn | grep :3000
+
+# 停止服务
+docker-compose down
+```
+
+#### 2. 数据库连接失败
 ```bash
 # 检查 PostgreSQL 容器状态
+docker-compose ps postgres
+
+# 查看数据库日志
 docker-compose logs postgres
 
-# 手动测试数据库连接
-docker-compose exec postgres psql -U nodepass -d nodepass -c "SELECT 1;"
+# 重启数据库
+docker-compose restart postgres
 ```
 
-#### 2. 应用启动缓慢
+#### 3. 应用启动失败
 ```bash
-# 查看应用启动日志
+# 查看详细日志
 docker-compose logs -f app
 
-# 检查资源使用情况
-docker stats nodepass-app
-```
+# 进入容器调试
+docker exec -it nodepass-app sh
 
-#### 3. 端口冲突
-```bash
-# 修改 docker-compose.yml 中的端口映射
-ports:
-  - "3002:3000"  # 将主机端口改为3002
-  - "3003:3001"  # 将主机端口改为3003
+# 检查 Prisma 状态
+docker exec -it nodepass-app pnpm exec prisma migrate status
 ```
 
 ### 日志查看
 
 ```bash
 # 查看所有服务日志
-docker-compose logs
+docker-compose logs -f
 
-# 查看特定服务日志
-docker-compose logs app
-docker-compose logs postgres
-
-# 实时跟踪日志
+# 只查看应用日志
 docker-compose logs -f app
+
+# 只查看数据库日志
+docker-compose logs -f postgres
 ```
 
-## 🔄 更新和维护
+## 📊 健康检查
 
-### 更新到最新版本
+应用内置了完整的健康检查功能：
+- **检查地址**: `http://localhost:3000/api/health`
+- **检查间隔**: 30秒
+- **超时时间**: 10秒
+- **重试次数**: 5次
+
+健康检查包括：
+- ✅ 数据库连接状态
+- ✅ 内存使用情况
+- ✅ 应用运行时间
+- ✅ SSE服务状态
+
+## 🚀 生产部署
+
+### 使用预构建镜像（推荐）
 
 ```bash
-# 拉取最新镜像
-docker-compose pull
+# 1. 下载生产配置
+wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml
 
-# 重启服务
-docker-compose up -d
+# 2. 设置生产环境变量
+cat > .env << EOF
+POSTGRES_USER=nodepass
+POSTGRES_PASSWORD=$(openssl rand -base64 32)
+POSTGRES_DB=nodepass
+JWT_SECRET=$(openssl rand -base64 32)
+NODE_ENV=production
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+EOF
+
+# 3. 启动生产服务
+docker-compose -f docker-compose.release.yml up -d
 ```
 
-### 数据备份
+### 自定义构建
 
 ```bash
-# 备份 PostgreSQL 数据库
-docker-compose exec postgres pg_dump -U nodepass nodepass > backup.sql
+# 构建生产镜像
+docker build --target production -t nodepass-webui:latest .
 
-# 恢复数据库
-docker-compose exec -T postgres psql -U nodepass nodepass < backup.sql
+# 运行生产容器
+docker run -d \
+  --name nodepass-production \
+  -p 3000:3000 \
+  -e DATABASE_URL="your-production-db-url" \
+  -e JWT_SECRET="your-production-jwt-secret" \
+  -e NODE_ENV=production \
+  -e NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 \
+  nodepass-webui:latest
 ```
 
-### 清理
+## 📈 性能优化
 
-```bash
-# 停止并删除容器
-docker-compose down
+### 系统要求
 
-# 删除数据卷 (⚠️ 注意：会丢失所有数据)
-docker-compose down -v
+**最低要求**:
+- Docker Engine 20.0+
+- Docker Compose 2.0+
+- 可用内存: 512MB
+- 可用存储: 1GB
 
-# 清理未使用的镜像
-docker image prune -a
-```
-
-## 📈 生产环境优化
+**推荐配置**:
+- Docker Engine 24.0+
+- Docker Compose 2.20+
+- 可用内存: 1GB+
+- 可用存储: 5GB+
 
 ### 资源限制
 
@@ -188,15 +257,6 @@ services:
         reservations:
           memory: 512M
           cpus: '0.25'
-```
-
-### 数据持久化
-
-```yaml
-# 确保数据卷持久化
-volumes:
-  postgres_data:
-    driver: local
 ```
 
 ## 🛡️ 安全建议
@@ -217,25 +277,46 @@ services:
       - "127.0.0.1:5432:5432"
 ```
 
-### 3. 使用非root用户
-```dockerfile
-# 在 Dockerfile 中
-USER node
+### 3. 数据备份
+```bash
+# 备份 PostgreSQL 数据库
+docker-compose exec postgres pg_dump -U nodepass nodepass > backup.sql
+
+# 恢复数据库
+docker-compose exec -T postgres psql -U nodepass nodepass < backup.sql
 ```
 
-## 🚦 系统要求
+## 🔄 更新和维护
 
-### 最低要求
-- Docker Engine 20.0+
-- Docker Compose 2.0+
-- 可用内存: 512MB
-- 可用存储: 1GB
+### 更新到最新版本
 
-### 推荐配置
-- Docker Engine 24.0+
-- Docker Compose 2.20+
-- 可用内存: 1GB+
-- 可用存储: 5GB+
+```bash
+# 拉取最新镜像
+docker-compose -f docker-compose.release.yml pull
+
+# 重启服务
+docker-compose -f docker-compose.release.yml up -d
+```
+
+### 清理
+
+```bash
+# 停止并删除容器
+docker-compose down
+
+# 删除数据卷 (⚠️ 注意：会丢失所有数据)
+docker-compose down -v
+
+# 清理未使用的镜像
+docker image prune -a
+```
+
+## 📝 更多信息
+
+- [SSE服务整合文档](./SSE_INTEGRATION.md)
+- [API文档](./api.md)
+- [开发指南](./README.md)
+- [GitHub仓库](https://github.com/Mecozea/nodepass-webui)
 
 ## 📞 支持
 
@@ -245,4 +326,4 @@ USER node
 
 ## 📄 许可证
 
-本项目基于 [MIT 许可证](LICENSE) 开源。 
+本项目基于 [MIT 许可证](https://github.com/Mecozea/nodepass-webui/blob/main/LICENSE) 开源。

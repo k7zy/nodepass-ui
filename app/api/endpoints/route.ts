@@ -144,15 +144,6 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // 记录操作日志
-    // await logTunnelOperation({
-    //   tunnelId: newEndpoint.id.toString(),
-    //   tunnelName: newEndpoint.name,
-    //   action: 'CREATED',
-    //   status: 'SUCCESS',
-    //   message: '成功创建新端点'
-    // });
-
     // 通知 SSE 服务开始监听新端点
     try {
       await sseService.connectEndpoint(newEndpoint.id);
@@ -225,8 +216,6 @@ export async function DELETE(request: NextRequest) {
     const deletedEndpoint = await prisma.endpoint.delete({
       where: { id }
     });
-
-    // TODO: 如果需要记录端点操作日志，应该创建专门的函数
     
     return NextResponse.json({ 
       success: true, 

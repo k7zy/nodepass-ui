@@ -19,12 +19,12 @@ enum EndpointStatus {
 
 // SSE 事件类型枚举
 enum SSEEventType {
-  INITIAL    // 连接建立时发送，包含所有实例的当前状态
-  CREATE     // 创建新实例时发送
-  UPDATE     // 实例更新时发送（状态变更、启动/停止操作）
-  DELETE     // 实例被删除时发送
-  SHUTDOWN   // 主控服务即将关闭时发送
-  LOG        // 实例产生新日志内容时发送
+  initial    // 连接建立时发送，包含所有实例的当前状态
+  create     // 创建新实例时发送
+  update     // 实例更新时发送（状态变更、启动/停止操作）
+  delete     // 实例被删除时发送
+  shutdown   // 主控服务即将关闭时发送
+  log        // 实例产生新日志内容时发送
 }
 
 // 隧道状态枚举

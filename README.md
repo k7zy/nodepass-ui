@@ -10,6 +10,39 @@
 - 🎨 **现代UI**: 基于 HeroUI 的响应式设计，支持深色/浅色主题
 - 🐳 **Docker化**: 开箱即用的 Docker 部署方案
 - 🌍 **国际化**: 针对不同地区优化的网络配置
+- 🔒 **SSL 自签名证书支持**：自动兼容 HTTPS 自签名证书
+
+## 🔒 SSL 自签名证书支持
+
+本系统已内置对 SSL 自签名证书的支持，当连接到使用自签名证书的 HTTPS NodePass 端点时：
+
+### 自动处理的场景
+- ✅ 创建、启动、停止、删除隧道实例
+- ✅ SSE 事件流连接和监听
+- ✅ 端点连接测试和验证
+- ✅ 实时日志和状态更新
+
+### 技术实现
+- 服务器端 API 调用使用自定义 HTTPS Agent，设置 `rejectUnauthorized: false`
+- SSE 服务连接自动检测 HTTPS 并跳过 SSL 证书验证
+- 所有 NodePass API 调用都支持自签名证书
+
+### 使用方法
+无需额外配置，系统会自动检测 HTTPS 连接并适配自签名证书：
+
+```typescript
+// 系统会自动处理这样的端点
+const endpoint = {
+  url: "https://your-nodepass.example.com",  // 自签名证书的HTTPS端点
+  apiPath: "/api",
+  apiKey: "your-api-key"
+};
+```
+
+### 安全说明
+- 自签名证书支持仅在服务器端 API 调用中启用
+- 浏览器端连接仍受浏览器安全策略限制
+- 建议在生产环境中使用有效的 SSL 证书
 
 ## 🏗️ 技术栈
 
