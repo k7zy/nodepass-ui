@@ -10,7 +10,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nodepass123}
       POSTGRES_DB: ${POSTGRES_DB:-nodepass}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     restart: unless-stopped
@@ -56,9 +57,9 @@ services:
       retries: 5
       start_period: 60s
 
-volumes:
-  postgres_data:
-    driver: local
+# volumes:
+#   postgres_data:
+#     driver: local
 
 # 🚀 使用说明:
 # 1. 创建 .env 文件并设置环境变量

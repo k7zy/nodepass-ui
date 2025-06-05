@@ -95,6 +95,8 @@ CMD ["sh", "-c", "\
     done && \
     echo '📊 运行数据库迁移...' && \
     pnpm exec prisma migrate deploy && \
+    echo '🔧 初始化系统...' && \
+    pnpm exec tsx scripts/init-system.ts && \
     echo '🎯 启动整合生产服务...' && \
     NODE_ENV=production pnpm start \
 "] 
