@@ -31,17 +31,6 @@
 - ✅ 端点连接测试和验证
 - ✅ 实时日志和状态更新
 
-### 技术实现
-- 服务器端 API 调用使用自定义 HTTPS Agent，设置 `rejectUnauthorized: false`
-- SSE 服务连接自动检测 HTTPS 并跳过 SSL 证书验证
-- 所有 NodePass API 调用都支持自签名证书
-
-
-### 安全说明
-- 自签名证书支持仅在服务器端 API 调用中启用
-- 浏览器端连接仍受浏览器安全策略限制
-- 建议在生产环境中使用有效的 SSL 证书
-
 ## 🏗️ 技术栈
 
 - **前端框架**: Next.js 14 (App Router)
@@ -118,7 +107,6 @@ pnpm dev:all
 
 访问：
 - 前端界面: http://localhost:3000
-- 后端 SSE 服务: http://localhost:3001
 
 ## 🛠️ 开发指南
 
