@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { changeUserPassword } from '@/lib/server/auth-service';
+import { changeUserPassword, validateSession, getSessionUser } from '@/lib/server/auth-service';
 
 // 密码修改请求验证schema
 const changePasswordSchema = z.object({
@@ -27,6 +26,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 验证会话是否有效
+    const isValidSession = await validateSession(sessionCookie.value);
+    if (!isValidSession) {
+      return NextResponse.json(
+        { success: false, message: '会话已过期，请重新登录' },
+        { status: 401 }
+      );
+    }
+
+    // 获取会话用户信息
+    const sessionUser = await getSessionUser(sessionCookie.value);
+    if (!sessionUser) {
+      return NextResponse.json(
+        { success: false, message: '无法获取用户信息' },
+        { status: 401 }
+      );
+    }
+
     // 解析请求体
     const body = await request.json();
     const validationResult = changePasswordSchema.safeParse(body);
@@ -44,33 +61,17 @@ export async function POST(request: NextRequest) {
 
     const { currentPassword, newPassword } = validationResult.data;
 
-    // 查找用户会话
-    const session = await prisma.userSession.findUnique({
-      where: { 
-        sessionId: sessionCookie.value,
-        isActive: true,
-        expiresAt: { gt: new Date() }
-      }
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { success: false, message: '会话已过期，请重新登录' },
-        { status: 401 }
-      );
-    }
-
     console.log('[修改密码API] 开始处理用户密码修改请求:', {
-      username: session.username,
-      sessionId: session.sessionId
+      username: sessionUser.username,
+      sessionId: sessionCookie.value
     });
 
     // 使用本地auth-service修改密码
-    const result = await changeUserPassword(session.username, currentPassword, newPassword);
+    const result = await changeUserPassword(sessionUser.username, currentPassword, newPassword);
 
     if (result.success) {
       console.log('[修改密码API] 密码修改成功:', {
-        username: session.username
+        username: sessionUser.username
       });
 
       return NextResponse.json({
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       console.log('[修改密码API] 密码修改失败:', {
-        username: session.username,
+        username: sessionUser.username,
         message: result.message
       });
 

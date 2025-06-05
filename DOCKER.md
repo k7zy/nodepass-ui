@@ -12,30 +12,89 @@ NodePass WebUI 采用**整合架构**设计：
 
 ## 🚀 快速开始
 
+> ⚠️ **重要提醒：系统初始化**
+> 
+> 首次部署时，系统会自动初始化并创建管理员账户。部署完成后，请立即执行以下命令查看初始登录信息：
+> ```bash
+> # 如果使用 Docker Plugin
+> docker compose logs | grep -A 6 "系统初始化完成"
+> # 或使用独立安装的 docker-compose
+> docker-compose logs | grep -A 6 "系统初始化完成"
+> # 如果使用 Docker 命令
+> docker logs nodepass-app | grep -A 6 "系统初始化完成"
+>
+> # 你将看到如下信息：
+> ================================
+> 🚀 NodePass 系统初始化完成！
+> ================================
+> 管理员账户信息：
+> 用户名: nodepass
+> 密码: SHqgYw7eX95w
+> ================================
+> ⚠️  请妥善保存这些信息！
+> ================================
+> ```
+> 
+> **⚠️ 安全提示：** 
+> - 请在首次登录后立即修改管理员密码
+> - 初始密码仅会显示一次，请务必及时保存
+> - 如果错过初始密码，需要重置数据库并重新部署
+
 ### 方式一：使用预构建镜像（推荐）
 
 ```bash
-# 1. 下载 Docker Compose 文件
-wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml
+# 1. 下载 Docker Compose 文件并重命名
+wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml -O docker-compose.yml
 
 # 2. 创建环境变量文件
 cat > .env << EOF
 POSTGRES_USER=nodepass
 POSTGRES_PASSWORD=your_secure_password
 POSTGRES_DB=nodepass
+# 可以使用以下命令生成 JWT_SECRET：
+# openssl rand -base64 32
+# 或访问 https://generate-secret.vercel.app/32 生成
 JWT_SECRET=your_super_secret_jwt_key
 NODE_ENV=production
 NEXT_PUBLIC_API_BASE_URL=http://localhost:3000  # 云端部署时改为实际域名
 EOF
 
-# 3. 启动服务
-docker-compose -f docker-compose.release.yml up -d
+# 3. 创建日志目录并设置权限
+mkdir -p logs && chmod 777 logs
 
-# 4. 访问应用
-# http://localhost:3000
+# 4. 启动服务
+docker compose up -d  # 如果使用 Docker Plugin
+# 或
+docker-compose up -d  # 如果使用独立安装的 docker-compose
 ```
 
-### 方式二：本地构建
+### 方式二：使用 Docker 命令启动（需要自备 PostgreSQL）
+
+> ⚠️ 注意：此方式需要您已经有一个可用的 PostgreSQL 数据库实例
+
+```bash
+# 1. 拉取镜像
+docker pull ghcr.io/mecozea/nodepass-webui:latest
+
+# 2. 创建日志目录并设置权限
+mkdir -p logs && chmod 777 logs
+
+# 3. 启动容器
+docker run -d \
+  --name nodepass-webui \
+  -p 3000:3000 \
+  -v ./logs:/app/logs \
+  -e POSTGRES_USER=nodepass \
+  -e POSTGRES_PASSWORD=your_secure_password \
+  -e POSTGRES_DB=nodepass \
+  -e JWT_SECRET=your_super_secret_jwt_key \
+  -e DATABASE_URL="postgresql://nodepass:your_secure_password@your_db_host:5432/nodepass" \
+  -e NODE_ENV=production \
+  -e NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 \
+  ghcr.io/mecozea/nodepass-webui:latest
+```
+
+### 方式三：本地构建
 
 ```bash
 # 1. 克隆项目
@@ -53,6 +112,8 @@ pnpm docker:logs
 ```
 
 ## 📋 可用脚本
+
+> ⚠️ 注意：如果您使用的是 Docker Plugin 方式，请将以下命令中的 `docker-compose` 替换为 `docker compose`
 
 ```bash
 pnpm docker:up:integrated      # 启动整合模式 (后台)
@@ -121,7 +182,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
 docker pull ghcr.io/mecozea/nodepass-webui:latest
 
 # 特定版本
-docker pull ghcr.io/mecozea/nodepass-webui:v1.0.0
+docker pull ghcr.io/mecozea/nodepass-webui:v1.1.1
 ```
 
 ## 🐛 故障排除
@@ -193,8 +254,8 @@ docker-compose logs -f postgres
 ### 使用预构建镜像（推荐）
 
 ```bash
-# 1. 下载生产配置
-wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml
+# 1. 下载生产配置并重命名
+wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml -O docker-compose.yml
 
 # 2. 设置生产环境变量
 cat > .env << EOF
@@ -206,8 +267,13 @@ NODE_ENV=production
 NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
 EOF
 
-# 3. 启动生产服务
-docker-compose -f docker-compose.release.yml up -d
+# 3. 创建日志目录并设置权限
+mkdir -p logs && chmod 777 logs
+
+# 4. 启动生产服务
+docker compose up -d  # 如果使用 Docker Plugin
+# 或
+docker-compose up -d  # 如果使用独立安装的 docker-compose
 ```
 
 ### 自定义构建
@@ -216,10 +282,14 @@ docker-compose -f docker-compose.release.yml up -d
 # 构建生产镜像
 docker build --target production -t nodepass-webui:latest .
 
+# 创建日志目录并设置权限
+mkdir -p logs && chmod 777 logs
+
 # 运行生产容器
 docker run -d \
   --name nodepass-production \
   -p 3000:3000 \
+  -v ./logs:/app/logs \
   -e DATABASE_URL="your-production-db-url" \
   -e JWT_SECRET="your-production-jwt-secret" \
   -e NODE_ENV=production \
@@ -292,20 +362,28 @@ docker-compose exec -T postgres psql -U nodepass nodepass < backup.sql
 
 ```bash
 # 拉取最新镜像
-docker-compose -f docker-compose.release.yml pull
+docker compose pull  # 如果使用 Docker Plugin
+# 或
+docker-compose pull  # 如果使用独立安装的 docker-compose
 
 # 重启服务
-docker-compose -f docker-compose.release.yml up -d
+docker compose up -d  # 如果使用 Docker Plugin
+# 或
+docker-compose up -d  # 如果使用独立安装的 docker-compose
 ```
 
 ### 清理
 
 ```bash
 # 停止并删除容器
-docker-compose down
+docker compose down  # 如果使用 Docker Plugin
+# 或
+docker-compose down  # 如果使用独立安装的 docker-compose
 
 # 删除数据卷 (⚠️ 注意：会丢失所有数据)
-docker-compose down -v
+docker compose down -v  # 如果使用 Docker Plugin
+# 或
+docker-compose down -v  # 如果使用独立安装的 docker-compose
 
 # 清理未使用的镜像
 docker image prune -a
