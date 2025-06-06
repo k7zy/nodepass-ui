@@ -115,7 +115,7 @@ volumes:
 docker pull ghcr.io/mecozea/nodepass-webui:latest
 
 # 特定版本
-docker pull ghcr.io/mecozea/nodepass-webui:v1.2.1
+docker pull ghcr.io/mecozea/nodepass-webui:v1.2.2
 ```
 
 ## 🐛 故障排除

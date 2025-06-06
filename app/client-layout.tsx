@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { AuthProvider } from "./components/auth-provider";
 import { RouteGuard } from "./components/route-guard";
 import { Navbar } from "@/components/layout/navbar";
+import pkg from '../package.json';
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,15 +30,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               {children}
             </main>
             <footer className="w-full flex items-center justify-center py-3">
-              {/* <Link
-                isExternal
-                className="flex items-center gap-1 text-current"
-                href="https://heroui.com?utm_source=next-app-template"
-                title="heroui.com homepage"
-              >
-                <span className="text-default-600">Powered by</span>
-                <p className="text-primary">HeroUI</p>
-              </Link> */}
+              <div className="text-default-600 text-sm">
+              NodePass管理 © 2025 | v{pkg.version} | 由 <a href="https://github.com/yosebyte/nodepass" target="_blank" className="text-blue-500 hover:text-blue-600">NodePass</a> 驱动
+              </div>
             </footer>
           </div>
         )}

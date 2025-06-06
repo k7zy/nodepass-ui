@@ -13,7 +13,7 @@ const socialLinks = [
     key: "github",
     label: "Github",
     icon: "mdi:github",
-    href: "https://github.com/yosebyte/nodepass",
+    href: "https://github.com/Mecozea/nodepass-webui",
     target: "_blank",
   },
   {

@@ -17,6 +17,9 @@ const processAnsiColors = (text: string) => {
     // 移除时间戳前缀（如果存在）
     text = text.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s/, '');
     
+    // 只移除 \u001B 字符，保留后面的颜色代码
+    text = text.replace(/\u001B/g, ''); // 只移除 ESC 字符，保留 [32m 等
+    
     // 将 ANSI 颜色代码转换为 HTML span 标签
     const colorMap = new Map([
       [/\[32m/g, '<span class="text-green-400">'],
@@ -91,7 +94,9 @@ export async function GET(
       },
       take: 200, // 获取最近200条日志
       select: {
-        logs: true
+        logs: true,
+        eventTime: true,
+        createdAt: true
       }
     }) : [];
 
@@ -162,10 +167,21 @@ export async function GET(
       commandLine: tunnel.commandLine
     };
 
-    // 6. 处理日志数据 - 应用ANSI颜色处理
+    // 6. 处理日志数据 - 应用ANSI颜色处理，保留时间信息
     const logs = logRecords
       .filter(record => record.logs && record.logs.trim()) // 过滤空日志
-      .map(log => processAnsiColors(log.logs || '')); // 处理ANSI颜色并返回字符串
+      .map((record, index) => ({
+        id: index + 1,
+        message: processAnsiColors(record.logs || ''),
+        isHtml: true,
+        traffic: {
+          tcpRx: 0,
+          tcpTx: 0,
+          udpRx: 0,
+          udpTx: 0
+        },
+        timestamp: record.eventTime || record.createdAt // 使用事件时间或创建时间
+      }));
 
     return NextResponse.json({
       tunnelInfo,

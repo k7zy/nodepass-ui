@@ -34,16 +34,19 @@ const processAnsiColors = (text: string) => {
     // 移除时间戳前缀（如果存在）
     text = text.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s/, '');
     
+    // 只移除 \u001B 字符，保留后面的颜色代码
+    text = text.replace(/\u001B/g, ''); // 只移除 ESC 字符，保留 [32m 等
+    
     // 将 ANSI 颜色代码转换为 HTML span 标签
     const colorMap = new Map([
-      [/\[32m/g, '<span class="text-green-400">'],
-      [/\[31m/g, '<span class="text-red-400">'],
-      [/\[33m/g, '<span class="text-yellow-400">'],
-      [/\[34m/g, '<span class="text-blue-400">'],
-      [/\[35m/g, '<span class="text-purple-400">'],
-      [/\[36m/g, '<span class="text-cyan-400">'],
-      [/\[37m/g, '<span class="text-gray-400">'],
-      [/\[0m/g, '</span>']
+      [/\[32m/g, '<span class="text-green-400">'],   // INFO - 绿色
+      [/\[31m/g, '<span class="text-red-400">'],     // ERROR - 红色
+      [/\[33m/g, '<span class="text-yellow-400">'],  // WARN - 黄色
+      [/\[34m/g, '<span class="text-blue-400">'],    // DEBUG - 蓝色
+      [/\[35m/g, '<span class="text-purple-400">'],  // 紫色
+      [/\[36m/g, '<span class="text-cyan-400">'],    // 青色
+      [/\[37m/g, '<span class="text-gray-400">'],    // 灰色
+      [/\[0m/g, '</span>']                           // 结束标签
     ]);
 
     // 替换颜色代码
@@ -55,15 +58,16 @@ const processAnsiColors = (text: string) => {
     const openTags = (text.match(/<span/g) || []).length;
     const closeTags = (text.match(/<\/span>/g) || []).length;
     
-    // 如果开标签比闭标签多，添加缺少的闭标签
+    // 如果开始标签多于结束标签，添加结束标签
     if (openTags > closeTags) {
-      text += '</span>'.repeat(openTags - closeTags);
+      const missingCloseTags = openTags - closeTags;
+      text += '</span>'.repeat(missingCloseTags);
     }
 
     return text;
   } catch (error) {
-    console.error('处理日志颜色失败:', error);
-    return text; // 如果处理失败，返回原始文本
+    console.error('处理ANSI颜色失败:', error);
+    return text;
   }
 };
 
@@ -383,23 +387,31 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         完整数据: JSON.stringify(data.tunnelInfo, null, 2)
       });
       
-      // 设置历史日志 - 处理字符串数组格式，启用HTML渲染
+      // 设置历史日志 - 处理带时间信息的日志对象
       if (data.logs && Array.isArray(data.logs)) {
         // 初始化计数器为历史日志的数量，确保新日志ID不会与历史日志冲突
         logCounterRef.current = data.logs.length;
-        const formattedLogs = data.logs.map((message: string, index: number) => ({
-          id: index + 1, // 从1开始计数，避免0值
-          message,
-          isHtml: true, // 启用HTML格式渲染
-          traffic: {
-            tcpRx: 0,
-            tcpTx: 0,
-            udpRx: 0,
-            udpTx: 0
-          },
-          timestamp: new Date() // 使用当前时间作为占位符
-        }));
-        setLogs(formattedLogs);
+        
+        // 检查日志数据格式
+        if (data.logs.length > 0 && typeof data.logs[0] === 'object') {
+          // 新格式：对象数组，包含时间信息
+          setLogs(data.logs);
+        } else {
+          // 旧格式：字符串数组，需要转换
+          const formattedLogs = data.logs.map((message: string, index: number) => ({
+            id: index + 1,
+            message,
+            isHtml: true,
+            traffic: {
+              tcpRx: 0,
+              tcpTx: 0,
+              udpRx: 0,
+              udpTx: 0
+            },
+            timestamp: new Date() // 使用当前时间作为占位符
+          }));
+          setLogs(formattedLogs);
+        }
         
         // 稍微延迟滚动，确保DOM更新完成
         setTimeout(scrollToBottom, 100);

@@ -80,6 +80,9 @@ export async function GET(
         // 移除时间戳前缀（如果存在）
         text = text.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s/, '');
         
+        // 只移除 \u001B 字符，保留后面的颜色代码
+        text = text.replace(/\u001B/g, ''); // 只移除 ESC 字符，保留 [32m 等
+        
         // 将 ANSI 颜色代码转换为对象
         const colorMap = new Map([
           [/\[32m/g, '<span class="text-green-400">'],
