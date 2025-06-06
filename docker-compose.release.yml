@@ -2,9 +2,9 @@ version: '3.8'
 
 services:
   # NodePass 应用 - 使用GitHub发布的镜像
-  app:
-    image: ghcr.io/mecozea/nodepass-webui:latest
-    container_name: nodepass-app
+  nodepassdash:
+    image: ghcr.io/mecozea/nodepassdash:latest
+    container_name: nodepassdash
     environment:
       # 应用配置(修改这里)
       - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production

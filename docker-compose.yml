@@ -1,11 +1,11 @@
 services:
   # NodePass 应用 - 整合SSE服务的单一容器
-  webui:
+  nodepassdash:
     build:
       context: .
       dockerfile: Dockerfile
       target: production
-    container_name: nodepass-webui
+    container_name: nodepassdash
     environment:
       # 应用配置
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}

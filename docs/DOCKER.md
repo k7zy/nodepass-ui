@@ -22,7 +22,7 @@ NodePass WebUI 采用**整合架构**设计：
 > # 或使用独立安装的 docker-compose
 > docker-compose logs | grep -A 6 "系统初始化完成"
 > # 如果使用 Docker 命令
-> docker logs nodepass-webui | grep -A 6 "系统初始化完成"
+> docker logs nodepassdash | grep -A 6 "系统初始化完成"
 >
 > # 你将看到如下信息：
 > ================================
@@ -45,7 +45,7 @@ NodePass WebUI 采用**整合架构**设计：
 
 ```bash
 # 1. 下载 Docker Compose 文件并重命名
-wget https://raw.githubusercontent.com/Mecozea/nodepass-webui/main/docker-compose.release.yml -O docker-compose.yml
+wget https://raw.githubusercontent.com/Mecozea/NodePassDash/main/docker-compose.release.yml -O docker-compose.yml
 
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
@@ -62,19 +62,19 @@ docker-compose up -d  # 如果使用独立安装的 docker-compose
 
 ```bash
 # 1. 拉取镜像
-docker pull ghcr.io/mecozea/nodepass-webui:latest
+docker pull ghcr.io/mecozea/nodepassdash:latest
 
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
 
 # 3. 修改 JWT_SECRET 并启动容器
 docker run -d \
-  --name nodepass-webui \
+  --name nodepassdash \
   -p 3000:3000 \
   -v ./logs:/app/logs \
   -v ./public:/app/public \
   -e JWT_SECRET=your_super_secret_jwt_key \
-  ghcr.io/mecozea/nodepass-webui:latest
+  ghcr.io/mecozea/nodepassdash:latest
 ```
 
 ### 环境变量说明
@@ -129,13 +129,13 @@ chmod 666 public/sqlite.db
 #### 3. 应用启动失败
 ```bash
 # 查看详细日志
-docker-compose logs -f webui
+docker-compose logs -f nodepassdash
 
 # 进入容器调试
-docker exec -it nodepass-webui sh
+docker exec -it nodepassdash sh
 
 # 检查 Prisma 状态
-docker exec -it nodepass-webui pnpm exec prisma migrate status
+docker exec -it nodepassdash pnpm exec prisma migrate status
 ```
 
 ### 日志查看
@@ -145,7 +145,7 @@ docker exec -it nodepass-webui pnpm exec prisma migrate status
 docker-compose logs -f
 
 # 只查看应用日志
-docker-compose logs -f webui
+docker-compose logs -f nodepassdash
 ```
 
 
@@ -176,14 +176,14 @@ JWT_SECRET=$(openssl rand -base64 32)
 ### 2. 数据备份
 ```bash
 # 备份 SQLite 数据库
-docker-compose stop webui  # 停止服务以确保数据一致性
+docker-compose stop nodepassdash  # 停止服务以确保数据一致性
 cp public/sqlite.db public/sqlite.db.backup
-docker-compose start webui
+docker-compose start nodepassdash
 
 # 恢复数据库
-docker-compose stop webui
+docker-compose stop nodepassdash
 cp public/sqlite.db.backup public/sqlite.db
-docker-compose start webui
+docker-compose start nodepassdash
 ```
 
 ## 🔄 更新和维护

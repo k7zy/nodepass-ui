@@ -83,7 +83,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/Mecozea/nodepass-webui.git
+git clone https://github.com/Mecozea/NodePassDash.git
 cd nodepass-webui
 
 # 2. 安装依赖
