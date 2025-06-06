@@ -19,10 +19,16 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faServer, faPen, faWifi, faSpinner, faEye, faEyeSlash, faFileImport, faFileExport } from "@fortawesome/free-solid-svg-icons";
 import { NodePassAPI } from "@/lib/api";
 
-interface EndpointFormData {
+// 表单数据接口
+interface FormData {
   name: string;
   url: string;
   apiKey: string;
+}
+
+// API提交数据接口
+interface EndpointFormData extends FormData {
+  apiPath: string;
 }
 
 interface AddEndpointModalProps {
@@ -40,13 +46,13 @@ export default function AddEndpointModal({
   const [showApiKey, setShowApiKey] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
-  const [formData, setFormData] = useState<EndpointFormData>({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     url: '',
     apiKey: ''
   });
 
-  const handleInputChange = (field: keyof EndpointFormData, value: string) => {
+  const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -131,7 +137,7 @@ export default function AddEndpointModal({
     const { baseUrl, apiPath } = parseUrl(formEntries.url);
     
     // 构造包含API前缀的数据对象，保持原有接口兼容
-    const data = {
+    const data: EndpointFormData = {
       name: formEntries.name,
       url: baseUrl,
       apiPath: apiPath,
@@ -331,6 +337,7 @@ export default function AddEndpointModal({
                                 const keyMatch = importText.match(/API KEY:\s*([^\s]+)/i);
                                 
                                 if (urlMatch && keyMatch) {
+                                  const { baseUrl } = parseUrl(urlMatch[1]);
                                   setFormData({
                                     name: '导入的主控',
                                     url: urlMatch[1],
