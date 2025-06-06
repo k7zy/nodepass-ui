@@ -74,26 +74,7 @@ docker run -d \
   -v ./logs:/app/logs \
   -v ./public:/app/public \
   -e JWT_SECRET=your_super_secret_jwt_key \
-  -e NODE_ENV=production \
-  -e NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 \
   ghcr.io/mecozea/nodepass-webui:latest
-```
-
-### 方式三：本地构建
-
-```bash
-# 1. 克隆项目
-git clone https://github.com/Mecozea/nodepass-webui.git
-cd nodepass-webui
-
-# 2. 启动整合模式
-pnpm docker:up:integrated
-
-# 3. 查看日志
-pnpm docker:logs
-
-# 4. 访问应用
-# http://localhost:3000
 ```
 
 ### 环境变量说明

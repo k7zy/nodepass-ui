@@ -25,12 +25,3 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-
-# 🚀 使用说明:
-# 1. 创建 .env 文件并设置环境变量
-# 2. 运行: docker-compose -f docker-compose.release.yml up -d
-# 3. 访问: http://localhost:3000
-#
-# 📝 环境变量示例:
-# JWT_SECRET=your_super_secret_jwt_key
-# NEXT_PUBLIC_API_BASE_URL=http://your-domain.com:3000  # 云端部署时修改为实际域名 
