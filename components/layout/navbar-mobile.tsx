@@ -19,12 +19,12 @@ const navigationItems = [
   },
   {
     href: "/tunnels",
-    label: "隧道管理", 
+    label: "实例管理", 
     icon: "solar:transmission-bold",
   },
   {
     href: "/endpoints",
-    label: "端点管理",
+    label: "主控管理",
     icon: "solar:server-2-bold",
   },
 ];

@@ -35,6 +35,10 @@
 ## 🚀 快速开始
 
 >[>点此体验<](https://ihzdkxqijssj.us-east-1.clawcloudrun.com/) [nodepass/nodepass123456]
+> 
+> ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
+
+
 
 ### 方式一：Docker 部署（推荐）
 
