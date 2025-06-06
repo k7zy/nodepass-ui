@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # NodePass 应用 - 使用GitHub发布的镜像
   nodepassdash:

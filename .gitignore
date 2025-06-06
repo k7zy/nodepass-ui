@@ -40,3 +40,9 @@ next-env.d.ts
 /lib/generated/prisma
 /logs
 SSE_INTEGRATION.md
+
+# database files
+*.db
+*.sqlite
+/public/*.db
+/public/*.sqlite
