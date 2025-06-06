@@ -34,6 +34,8 @@
 
 ## 🚀 快速开始
 
+>[>点此体验<](https://ihzdkxqijssj.us-east-1.clawcloudrun.com/) [nodepass/nodepass123456]
+
 ### 方式一：Docker 部署（推荐）
 
 我们提供了完整的 Docker 部署方案，支持：
