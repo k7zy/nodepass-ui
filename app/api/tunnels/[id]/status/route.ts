@@ -54,7 +54,7 @@ export async function PATCH(
 
     try {
       // 构建 NodePass API 请求 URL
-      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${tunnel.instanceId}`;
+      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${tunnel.instanceId}`;
 
       // 调用 NodePass API
       const nodepassResponse = await fetchWithSSLSupport(apiUrl, {

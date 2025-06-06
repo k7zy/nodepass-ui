@@ -106,7 +106,7 @@ export class NodePassAPI {
     const timeoutId = setTimeout(() => abortController.abort(), timeout);
 
     try {
-      const response = await this.proxyFetch(`${this.getBaseURL()}/v1/events`, {
+      const response = await this.proxyFetch(`${this.getBaseURL()}/events`, {
         headers: this.getHeaders(),
         signal: abortController.signal
       });
@@ -135,7 +135,7 @@ export class NodePassAPI {
 
   // 获取所有实例
   async getInstances(): Promise<Instance[]> {
-    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/instances`, {
       method: 'GET',
       headers: this.getHeaders()
     });
@@ -150,7 +150,7 @@ export class NodePassAPI {
 
   // 创建新实例
   async createInstance(data: CreateInstanceRequest): Promise<Instance> {
-    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/instances`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data)
@@ -166,7 +166,7 @@ export class NodePassAPI {
 
   // 获取特定实例
   async getInstance(id: string): Promise<Instance> {
-    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances/${id}`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/instances/${id}`, {
       method: 'GET',
       headers: this.getHeaders()
     });
@@ -181,7 +181,7 @@ export class NodePassAPI {
 
   // 更新实例
   async updateInstance(id: string, data: UpdateInstanceRequest): Promise<Instance> {
-    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances/${id}`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/instances/${id}`, {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: JSON.stringify(data)
@@ -197,7 +197,7 @@ export class NodePassAPI {
 
   // 删除实例
   async deleteInstance(id: string): Promise<void> {
-    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances/${id}`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/instances/${id}`, {
       method: 'DELETE',
       headers: this.getHeaders()
     });
@@ -239,7 +239,7 @@ export class NodePassAPI {
       this.abortController = new AbortController();
 
       // 使用代理发送请求
-      const response = await this.proxyFetch(`${this.getBaseURL()}/v1/events`, {
+      const response = await this.proxyFetch(`${this.getBaseURL()}/events`, {
         headers: this.getHeaders(),
         signal: this.abortController.signal
       });
@@ -305,7 +305,7 @@ export class NodePassAPI {
   private async handleInitialConnectionError(error: Event) {
     // 尝试发送一个普通请求来获取具体错误信息
     try {
-      const response = await fetch(`${this.getBaseURL()}/v1/events`, {
+      const response = await fetch(`${this.getBaseURL()}/events`, {
         headers: this.getHeaders()
       });
       const errorData = await response.json();

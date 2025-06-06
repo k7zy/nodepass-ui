@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const { url, apiPath, apiKey, timeout } = testConnectionSchema.parse(body);
     
     // 构建测试URL
-    const testUrl = `${url}${apiPath}/v1/events`;
+    const testUrl = `${url}${apiPath}/events`;
     
     console.log(`[端点测试] 开始测试连接: ${testUrl}`);
     

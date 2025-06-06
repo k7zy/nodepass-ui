@@ -99,7 +99,7 @@ export default function LoginPage() {
             >
               <FontAwesomeIcon icon={faLock} className="text-primary-foreground text-2xl" />
             </motion.div>
-            <h1 className="text-2xl font-bold text-foreground">NodePass 登录</h1>
+            <h1 className="text-2xl font-bold text-foreground">NodePassDash</h1>
             <p className="text-small text-default-500">请输入您的登录凭据</p>
           </CardHeader>
           

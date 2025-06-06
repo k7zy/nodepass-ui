@@ -104,20 +104,6 @@ volumes:
   - ./public:/app/public  # SQLite 数据库文件
 ```
 
-## 📦 可用镜像
-
-### GitHub Container Registry
-
-我们提供预构建镜像：
-
-```bash
-# 最新版本
-docker pull ghcr.io/mecozea/nodepass-webui:latest
-
-# 特定版本
-docker pull ghcr.io/mecozea/nodepass-webui:v1.2.2
-```
-
 ## 🐛 故障排除
 
 ### 常见问题

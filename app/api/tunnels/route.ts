@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     try {
       // 从端点URL解析host和port
       const endpointUrl = new URL(endpoint.url);
-      const apiUrl = `${endpoint.url}${endpoint.apiPath}/v1/instances`;
+      const apiUrl = `${endpoint.url}${endpoint.apiPath}/instances`;
       
       const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
         method: 'POST',
@@ -300,7 +300,7 @@ export async function DELETE(request: NextRequest) {
     // 调用NodePass API删除
     try {
       const endpointUrl = new URL(tunnel.endpoint.url);
-      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${instanceId}`;
+      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${instanceId}`;
       
       console.log(`=== NodePass DELETE API调试信息 ===`);
       console.log(`隧道实例ID: ${instanceId}`);
@@ -397,7 +397,7 @@ export async function PATCH(request: NextRequest) {
     // 调用NodePass API执行操作
     try {
       const endpointUrl = new URL(tunnel.endpoint.url);
-      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${instanceId}`;
+      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${instanceId}`;
       
       console.log(`=== NodePass API调试信息 ===`);
       console.log(`操作类型: ${action}`);

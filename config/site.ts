@@ -1,7 +1,7 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "NodePass管理",
+  name: "NodePassDash",
   description: "Make beautiful websites regardless of your design experience.",
   navItems: [
     {
@@ -9,11 +9,11 @@ export const siteConfig = {
       href: "/dashboard",
     },
     {
-      label: "隧道管理",
+      label: "实例管理",
       href: "/tunnels",
     },
     {
-      label: "API 端点管理",
+      label: "主控管理",
       href: "/endpoints",
     }
   ],

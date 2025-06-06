@@ -313,7 +313,7 @@ export class SSEService {
     try {
       const { url, apiPath, apiKey } = connection;
       // 使用API根路径进行检查，而不是SSE端点
-      const checkUrl = `${url}${apiPath}/v1`;
+      const checkUrl = `${url}${apiPath}`;
       
       // 创建自定义的 HTTPS agent 来跳过 SSL 验证
       const httpsAgent = new https.Agent({
@@ -542,7 +542,7 @@ export class SSEService {
   // 建立 SSE 连接
   private async establishConnection(endpointId: number, connection: SSEConnection) {
     const { url, apiPath, apiKey } = connection;
-    const sseUrl = `${url}${apiPath}/v1/events`;
+    const sseUrl = `${url}${apiPath}/events`;
     logger.info(`建立SSE连接: ${sseUrl}`);
     try {
       const controller = new AbortController();
@@ -1436,7 +1436,7 @@ export class SSEService {
    * @returns Promise<void>
    */
   public async testEndpointConnection(url: string, apiPath: string, apiKey: string): Promise<void> {
-    const sseUrl = `${url}${apiPath}/v1/events`;
+    const sseUrl = `${url}${apiPath}/events`;
     logger.info(`测试SSE连接: ${sseUrl}`);
 
     try {

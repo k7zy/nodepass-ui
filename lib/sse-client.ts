@@ -22,7 +22,7 @@ export class SSEClient {
     onClose?: () => void;
   }): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/events`, {
+      const response = await fetch(`${this.baseUrl}/events`, {
         method: 'GET',
         headers: {
           'X-API-Key': this.apiKey,
