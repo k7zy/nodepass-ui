@@ -84,7 +84,7 @@
 ```bash
 # 1. 克隆项目
 git clone https://github.com/NodePassProject/NodePassDash.git
-cd nodepass-webui
+cd NodePassDash
 
 # 2. 安装依赖
 pnpm install
