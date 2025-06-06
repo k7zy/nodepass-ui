@@ -29,7 +29,7 @@ import { Icon } from "@iconify/react";
 import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useRouter } from "next/navigation";
 import { EndpointStatus } from '@prisma/client';
-import { useGlobalSSE, useDashboardSSE } from '@/lib/hooks/use-sse';
+import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -298,23 +298,6 @@ export default function DashboardPage() {
       if (data.type === 'refresh' && data.route === '/dashboard') {
         router.refresh();
       }
-    }
-  });
-  
-  // 使用仪表盘SSE监听流量趋势更新
-  useDashboardSSE({
-    onConnected: () => {
-      console.log('仪表盘SSE连接成功');
-    },
-    onMessage: (data) => {
-      if (data.type === 'dashboard_update') {
-        // 处理流量趋势更新
-        console.log('收到仪表盘更新:', data);
-        // 这里可以更新UI状态
-      }
-    },
-    onError: (error) => {
-      console.error('仪表盘SSE错误:', error);
     }
   });
 
