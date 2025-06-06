@@ -34,7 +34,7 @@
 
 ## 🚀 快速开始
 
->[>点此体验<](https://ihzdkxqijssj.us-east-1.clawcloudrun.com/) [nodepass/nodepass123456]
+>[>点此体验<](https://ihzdkxqijssj.us-east-1.clawcloudrun.com/) [nodepass/np123456]
 > 
 > ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
 
@@ -161,9 +161,9 @@ pnpm exec prisma studio
 
 ## 📞 支持
 
-- 🐛 问题报告: [GitHub Issues](https://github.com/mecozea/nodepass-webui/issues)
-- 📖 文档: [项目 Wiki](https://github.com/mecozea/nodepass-webui/wiki)
-- 💬 社区讨论: [GitHub Discussions](https://github.com/mecozea/nodepass-webui/discussions)
+- 🐛 问题报告: [GitHub Issues](https://github.com/mecozea/NodePassDash/issues)
+- 📖 文档: [项目 Wiki](https://github.com/mecozea/NodePassDash/wiki)
+- 💬 社区讨论: [GitHub Discussions](https://github.com/mecozea/NodePassDash/discussions)
 - 🐳 Docker 部署: [Docker 指南](docs/DOCKER.md)
 
 ---
