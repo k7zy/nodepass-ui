@@ -53,6 +53,8 @@ class Logger {
     if (meta) {
       if (meta instanceof Error) {
         logMessage += `\nError: ${meta.message}\nStack: ${meta.stack}`;
+      } if (typeof meta === 'string'){
+        logMessage += `${meta}`
       } else {
         logMessage += `\nMeta: ${JSON.stringify(meta, null, 2)}`;
       }

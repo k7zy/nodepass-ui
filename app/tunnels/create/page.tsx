@@ -187,7 +187,7 @@ export default function CreateTunnelPage() {
       const result = await response.json();
 
       if (response.ok) {
-        showToast('隧道实例创建成功！', 'success');
+        showToast('实例实例创建成功！', 'success');
         // 延迟跳转，让用户看到成功提示
         setTimeout(() => {
           router.push('/tunnels');
@@ -196,7 +196,7 @@ export default function CreateTunnelPage() {
         throw new Error(result.error || '创建失败');
       }
     } catch (error) {
-      console.error('创建隧道实例失败:', error);
+      console.error('创建实例实例失败:', error);
       showToast(`创建失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error');
     } finally {
       setSubmitting(false);
@@ -215,9 +215,10 @@ export default function CreateTunnelPage() {
       )}
 
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">创建隧道</h1>
+        <h1 className="text-2xl font-bold">创建实例</h1>
         <Button 
           variant="light"
+          className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
           onClick={() => router.back()}
         >
           返回
@@ -288,7 +289,7 @@ export default function CreateTunnelPage() {
                       </div>
                       <p className="text-small text-default-500 truncate">{endpoint.url}</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个隧道</p>
+                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
                       </div>
                     </CardBody>
                   </Card>
@@ -301,7 +302,7 @@ export default function CreateTunnelPage() {
 
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
-          <h2 className="text-xl font-semibold">隧道模式</h2>
+          <h2 className="text-xl font-semibold">实例模式</h2>
         </CardHeader>
         <Divider />
         <CardBody className="p-6">
@@ -322,7 +323,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">服务器模式</h3>
-                  <p className="text-small text-default-500">接受传入的隧道连接，提供给目标服务</p>
+                  <p className="text-small text-default-500">接受传入的实例连接，提供给目标服务</p>
                 </div>
               </CardBody>
             </Card>
@@ -342,7 +343,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">客户端模式</h3>
-                  <p className="text-small text-default-500">连接到远程隧道服务器，转发本地目标</p>
+                  <p className="text-small text-default-500">连接到远程实例服务器，转发本地目标</p>
                 </div>
               </CardBody>
             </Card>
@@ -360,11 +361,11 @@ export default function CreateTunnelPage() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-3">
               <Input
-                label="隧道名称"
+                label="实例名称"
                 placeholder="web-server-tunnel"
                 value={formData.tunnelName}
                 onChange={(e) => handleInputChange("tunnelName", e.target.value)}
-                description="为此隧道实例指定一个描述性名称"
+                description="为此实例实例指定一个描述性名称"
               />
             </div>
             <div className="lg:col-span-1">
@@ -393,35 +394,31 @@ export default function CreateTunnelPage() {
                   Error
                   <div className="text-tiny text-default-400">错误条件</div>
                 </SelectItem>
-                <SelectItem key="fatal" textValue="Fatal">
-                  Fatal
-                  <div className="text-tiny text-default-400">致命条件</div>
-                </SelectItem>
               </Select>
             </div>
           </div>
 
-          {/* 隧道配置和目标配置 */}
+          {/* 实例配置和目标配置 */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* 隧道端配置 */}
+            {/* 实例端配置 */}
             <Card className="shadow-none border-2 border-primary-200 bg-primary-50/30 dark:border-primary-800 dark:bg-primary-900/20">
               <CardHeader className="pb-3">
-                <h3 className="text-lg font-semibold text-primary">隧道端配置</h3>
+                <h3 className="text-lg font-semibold text-primary">实例端配置</h3>
                 <p className="text-small text-default-500">
-                  {formData.mode === "server" ? "隧道监听的地址和端口" : "要连接的远程隧道地址和端口"}
+                  {formData.mode === "server" ? "实例监听的地址和端口" : "要连接的远程实例地址和端口"}
                 </p>
               </CardHeader>
               <CardBody className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="隧道地址"
+                    label="实例地址"
                     placeholder="0.0.0.0"
                     value={formData.tunnelAddress}
                     onChange={(e) => handleInputChange("tunnelAddress", e.target.value)}
                     description={formData.mode === "server" ? "监听地址" : "远程地址"}
                   />
                   <Input
-                    label="隧道端口"
+                    label="实例端口"
                     placeholder="10101"
                     type="number"
                     value={formData.tunnelPort}
@@ -437,7 +434,7 @@ export default function CreateTunnelPage() {
               <CardHeader className="pb-3">
                 <h3 className="text-lg font-semibold text-secondary">目标端配置</h3>
                 <p className="text-small text-default-500">
-                  {formData.mode === "server" ? "隧道流量转发到的目标地址和端口" : "本地服务的地址和端口"}
+                  {formData.mode === "server" ? "实例流量转发到的目标地址和端口" : "本地服务的地址和端口"}
                 </p>
               </CardHeader>
               <CardBody className="pt-0">
@@ -475,7 +472,7 @@ export default function CreateTunnelPage() {
                     </div>
                     <div className="text-xl">⬇️</div>
                     <div className="text-center">
-                      <div className="font-medium text-primary">隧道服务器</div>
+                      <div className="font-medium text-primary">实例服务器</div>
                       <div className="text-default-500">{formData.tunnelAddress}:{formData.tunnelPort}</div>
                     </div>
                     <div className="text-xl">⬇️</div>
@@ -492,12 +489,12 @@ export default function CreateTunnelPage() {
                     </div>
                     <div className="text-xl">⬆️</div>
                     <div className="text-center">
-                      <div className="font-medium text-primary">隧道客户端</div>
+                      <div className="font-medium text-primary">实例客户端</div>
                       <div className="text-default-500">本地</div>
                     </div>
                     <div className="text-xl">⬆️</div>
                     <div className="text-center">
-                      <div className="font-medium text-primary">远程隧道服务器</div>
+                      <div className="font-medium text-primary">远程实例服务器</div>
                       <div className="text-default-500">{formData.tunnelAddress}:{formData.tunnelPort}</div>
                     </div>
                   </>
@@ -553,12 +550,12 @@ export default function CreateTunnelPage() {
         <CardBody className="p-6">
           <Card className="p-4 bg-success-50 border-2 border-success-200 shadow-none mb-4">
             <CardBody>
-              <h3 className="text-lg font-semibold mb-4">请确认以下隧道配置：</h3>
+              <h3 className="text-lg font-semibold mb-4">请确认以下实例配置：</h3>
               <div className="space-y-2 text-sm">
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道模式：</span> {formData.mode === "server" ? "服务器模式" : "客户端模式"}</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道名称：</span> {formData.tunnelName}</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务器模式" : "客户端模式"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例名称：</span> {formData.tunnelName}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
                 {formData.mode === "server" &&
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
@@ -596,7 +593,7 @@ export default function CreateTunnelPage() {
           onClick={handleSubmit}
           isDisabled={submitting}
         >
-          {submitting ? "创建中..." : "创建隧道"}
+          {submitting ? "创建中..." : "创建实例"}
         </Button>
       </div>
     </div>

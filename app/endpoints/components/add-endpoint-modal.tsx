@@ -66,11 +66,24 @@ export default function AddEndpointModal({
     setIsTestingConnection(true);
 
     try {
-      // 创建临时的 API 实例
-      const tempAPI = new NodePassAPI(formData.apiKey, formData.url, formData.apiPath);
-      
-      // 测试连接（10秒超时）
-      await tempAPI.testConnection(10000);
+      // 使用新的 SSE 测试端点
+      const response = await fetch('/api/sse/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url: formData.url,
+          apiPath: formData.apiPath,
+          apiKey: formData.apiKey
+        })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || '连接测试失败');
+      }
 
       addToast({
         title: "连接测试成功",
@@ -103,7 +116,7 @@ export default function AddEndpointModal({
     setFormData({
       name: '',
       url: '',
-      apiPath: '/api/v1',
+      apiPath: '/api',
       apiKey: ''
     });
     

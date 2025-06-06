@@ -1,4 +1,5 @@
 import https from 'https';
+import fetch, { Response as NodeFetchResponse } from 'node-fetch';
 
 /**
  * 创建支持SSL自签名证书的fetch配置
@@ -33,7 +34,8 @@ export function createSSLCompatibleFetchOptions(url: string, options: RequestIni
  * @param options - fetch选项
  * @returns fetch响应
  */
-export async function fetchWithSSLSupport(url: string, options: RequestInit = {}): Promise<Response> {
+export async function fetchWithSSLSupport(url: string, options: RequestInit = {}): Promise<NodeFetchResponse> {
   const compatibleOptions = createSSLCompatibleFetchOptions(url, options);
-  return fetch(url, compatibleOptions);
+  // 使用 node-fetch 替代全局 fetch
+  return fetch(url, compatibleOptions as any);
 } 

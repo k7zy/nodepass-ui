@@ -7,91 +7,56 @@ interface SSEOptions {
   onConnected?: () => void;
 }
 
-// 全局事件订阅 - 自动适配集成模式和分离模式
+// 全局事件订阅 - 用于监听所有系统事件（包括隧道更新、仪表盘更新等）
 export function useGlobalSSE(options: SSEOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    // 优先尝试集成模式（Next.js API Routes）
-    const integratedUrl = buildClientSSEUrl(SSE_ENDPOINTS.global);
-    // 后备使用分离模式（独立后端服务）
-    const separatedUrl = 'http://localhost:3001/sse/global';
+    const url = buildClientSSEUrl(SSE_ENDPOINTS.global);
+    console.log(`[前端SSE] 尝试建立SSE连接`, { url });
 
-    let eventSource: EventSource;
-    let isUsingIntegratedMode = true;
-
-    const tryConnect = (url: string, isIntegrated: boolean) => {
-      console.log(`[前端SSE] 尝试${isIntegrated ? '集成' : '分离'}模式SSE连接`, {
-        url,
-        模式: isIntegrated ? '集成模式' : '分离模式'
+    const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
+    
+    eventSource.onmessage = (event) => {
+      console.log(`[前端SSE] 收到SSE消息`, {
+        原始数据: event.data,
+        时间戳: new Date().toISOString()
       });
-
-      const es = new EventSource(url);
       
-      es.onmessage = (event) => {
-        console.log(`[前端SSE] 收到${isIntegrated ? '集成' : '分离'}模式SSE消息`, {
-          原始数据: event.data,
-          时间戳: new Date().toISOString(),
-          模式: isIntegrated ? '集成模式' : '分离模式'
-        });
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[前端SSE] 解析后的全局数据', data);
         
-        try {
-          const data = JSON.parse(event.data);
-          console.log('[前端SSE] 解析后的全局数据', data);
-          
-          // 检查是否是空对象确认消息
-          if (Object.keys(data).length === 0) {
-            console.log(`[前端SSE] ✅ 收到${isIntegrated ? '集成' : '分离'}模式SSE连接确认消息`);
-            if (options.onConnected) {
-              options.onConnected();
-            }
-            return;
+        // 检查是否是空对象确认消息
+        if (Object.keys(data).length === 0) {
+          console.log(`[前端SSE] ✅ 收到SSE连接确认消息`);
+          if (options.onConnected) {
+            options.onConnected();
           }
-          
-          if (options.onMessage) {
-            options.onMessage(data);
-          }
-        } catch (error) {
-          console.error('[前端SSE] ❌ 解析全局SSE数据失败', error, '原始数据:', event.data);
-        }
-      };
-
-      es.onopen = (event) => {
-        console.log(`[前端SSE] ✅ ${isIntegrated ? '集成' : '分离'}模式SSE连接已打开`, event);
-      };
-
-      es.onerror = (error) => {
-        console.error(`[前端SSE] ❌ ${isIntegrated ? '集成' : '分离'}模式SSE连接错误`, error);
-        
-        // 如果集成模式失败，尝试分离模式
-        if (isIntegrated && isUsingIntegratedMode) {
-          console.log('[前端SSE] 集成模式连接失败，尝试分离模式...');
-          es.close();
-          isUsingIntegratedMode = false;
-          // 延迟重试分离模式
-          setTimeout(() => {
-            eventSource = tryConnect(separatedUrl, false);
-            eventSourceRef.current = eventSource;
-          }, 1000);
           return;
         }
         
-        if (options.onError) {
-          options.onError(error);
+        if (options.onMessage) {
+          options.onMessage(data);
         }
-      };
-
-      return es;
+      } catch (error) {
+        console.error('[前端SSE] ❌ 解析全局SSE数据失败', error, '原始数据:', event.data);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error(`[前端SSE] SSE连接错误`, error);
+      if (options.onError) {
+        options.onError(error);
+      }
     };
 
-    // 首先尝试集成模式
-    eventSource = tryConnect(integratedUrl, true);
-    eventSourceRef.current = eventSource;
-
     return () => {
-      console.log('[前端SSE] 🔌 关闭全局SSE连接');
-      if (eventSource) {
-        eventSource.close();
+      if (eventSourceRef.current) {
+        console.log('[前端SSE] 清理全局SSE连接');
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
     };
   }, []);
@@ -99,7 +64,7 @@ export function useGlobalSSE(options: SSEOptions = {}) {
   return eventSourceRef.current;
 }
 
-// 隧道事件订阅 - 自动适配集成模式和分离模式
+// 隧道事件订阅 - 用于监听特定隧道的事件
 export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -109,122 +74,54 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
       return;
     }
 
-    // 优先尝试集成模式（Next.js API Routes）
-    const integratedUrl = buildClientSSEUrl(SSE_ENDPOINTS.tunnel(instanceId));
-    // 后备使用分离模式（独立后端服务）
-    const separatedUrl = `http://localhost:3001/sse/tunnel/${instanceId}`;
+    const url = buildClientSSEUrl(SSE_ENDPOINTS.tunnel(instanceId));
+    console.log(`[前端SSE] 尝试建立隧道SSE连接`, { url, instanceId });
 
-    let eventSource: EventSource;
-    let isUsingIntegratedMode = true;
-
-    const tryConnect = (url: string, isIntegrated: boolean) => {
-      console.log(`[前端SSE] 尝试${isIntegrated ? '集成' : '分离'}模式隧道SSE连接`, {
-        url,
-        instanceId,
-        模式: isIntegrated ? '集成模式' : '分离模式'
-      });
-
-      const es = new EventSource(url);
-      
-      es.onmessage = (event) => {
-        console.log(`[前端SSE] 收到${isIntegrated ? '集成' : '分离'}模式隧道SSE消息`, {
-          原始数据: event.data,
-          时间戳: new Date().toISOString(),
-          instanceId,
-          模式: isIntegrated ? '集成模式' : '分离模式'
-        });
+    const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
         
-        try {
-          const data = JSON.parse(event.data);
-          console.log('[前端SSE] 解析后的隧道数据', data);
-          
-          // 检查是否是空对象确认消息
-          if (Object.keys(data).length === 0) {
-            console.log(`[前端SSE] ✅ 收到${isIntegrated ? '集成' : '分离'}模式隧道SSE连接确认消息`);
-            if (options.onConnected) {
-              options.onConnected();
-            }
-            return;
+        // 检查是否是空对象确认消息
+        if (Object.keys(data).length === 0) {
+          console.log(`[前端SSE] ✅ 收到隧道连接确认消息`);
+          if (options.onConnected) {
+            options.onConnected();
           }
-          
-          if (options.onMessage) {
-            options.onMessage(data);
-          }
-        } catch (error) {
-          console.error('[前端SSE] ❌ 解析隧道SSE数据失败', error, '原始数据:', event.data);
-        }
-      };
-
-      es.onopen = (event) => {
-        console.log(`[前端SSE] ✅ ${isIntegrated ? '集成' : '分离'}模式隧道SSE连接已打开`, event);
-      };
-
-      es.onerror = (error) => {
-        console.error(`[前端SSE] ❌ ${isIntegrated ? '集成' : '分离'}模式隧道SSE连接错误`, error);
-        
-        // 如果集成模式失败，尝试分离模式
-        if (isIntegrated && isUsingIntegratedMode) {
-          console.log('[前端SSE] 集成模式连接失败，尝试分离模式...');
-          es.close();
-          isUsingIntegratedMode = false;
-          // 延迟重试分离模式
-          setTimeout(() => {
-            eventSource = tryConnect(separatedUrl, false);
-            eventSourceRef.current = eventSource;
-          }, 1000);
           return;
         }
         
-        if (options.onError) {
-          options.onError(error);
+        console.log(`[前端SSE] 收到隧道SSE消息:`, {
+          instanceId,
+          事件类型: data.type,
+          数据: data
+        });
+        
+        if (options.onMessage) {
+          options.onMessage(data);
         }
-      };
-
-      return es;
-    };
-
-    // 首先尝试集成模式
-    eventSource = tryConnect(integratedUrl, true);
-    eventSourceRef.current = eventSource;
-
-    return () => {
-      console.log('[前端SSE] 🔌 关闭隧道SSE连接');
-      if (eventSource) {
-        eventSource.close();
+      } catch (error) {
+        console.error('[前端SSE] ❌ 解析隧道SSE数据失败', error, '原始数据:', event.data);
       }
     };
-  }, [instanceId]);
-
-  return eventSourceRef.current;
-}
-
-// 仪表盘订阅
-export function useDashboardSSE(options: SSEOptions = {}) {
-  const eventSourceRef = useRef<EventSource | null>(null);
-
-  useEffect(() => {
-    const eventSource = new EventSource(buildClientSSEUrl(SSE_ENDPOINTS.dashboard));
-    eventSourceRef.current = eventSource;
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'connected' && options.onConnected) {
-        options.onConnected();
-      } else if (options.onMessage) {
-        options.onMessage(data);
-      }
-    };
-
+    
     eventSource.onerror = (error) => {
+      console.error(`[前端SSE] 隧道SSE连接错误`, error);
       if (options.onError) {
         options.onError(error);
       }
     };
 
     return () => {
-      eventSource.close();
+      if (eventSourceRef.current) {
+        console.log('[前端SSE] 清理隧道SSE连接');
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
     };
-  }, []);
+  }, [instanceId]);
 
   return eventSourceRef.current;
 } 

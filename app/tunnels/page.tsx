@@ -34,11 +34,12 @@ import { Box, Flex } from "@/components";
 import { TunnelToolBox } from "./components/toolbox";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
+import { useGlobalSSE } from "@/lib/hooks/use-sse";
 
-// 定义隧道类型
+// 定义实例类型
 interface Tunnel {
   id: string;
-  instanceId?: string; // NodePass API的隧道ID（可选）
+  instanceId?: string; // NodePass API的实例ID（可选）
   type: string;
   name: string;
   endpoint: string;
@@ -63,29 +64,29 @@ export default function TunnelsPage() {
   const [deleteModalTunnel, setDeleteModalTunnel] = React.useState<Tunnel | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   
-  // 使用共用的隧道操作 hook
+  // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
 
-  // 隧道数据状态，支持动态更新
+  // 实例数据状态，支持动态更新
   const [tunnels, setTunnels] = React.useState<Tunnel[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // 获取隧道列表
+  // 获取实例列表
   const fetchTunnels = async () => {
     try {
       setLoading(true);
       setError(null); // 清除之前的错误
       const response = await fetch('/api/tunnels');
-      if (!response.ok) throw new Error('获取隧道列表失败');
+      if (!response.ok) throw new Error('获取实例列表失败');
       const data = await response.json();
       setTunnels(data);
     } catch (error) {
-      console.error('获取隧道列表失败:', error);
+      console.error('获取实例列表失败:', error);
       const errorMessage = error instanceof Error ? error.message : "未知错误";
       setError(errorMessage);
       addToast({
-        title: "获取隧道列表失败",
+        title: "获取实例列表失败",
         description: errorMessage,
         color: "danger",
       });
@@ -99,17 +100,37 @@ export default function TunnelsPage() {
     fetchTunnels();
   }, []);
 
+  // 使用全局SSE监听隧道更新事件
+  useGlobalSSE({
+    onMessage: (data) => {
+      // 处理隧道更新事件
+      if (['create', 'update', 'delete'].includes(data.type)) {
+        console.log('[隧道管理] 收到隧道更新事件:', data);
+        // 刷新隧道列表
+        fetchTunnels();
+      }
+    },
+    onError: (error) => {
+      console.error('[隧道管理] SSE连接错误:', error);
+      addToast({
+        title: "实时更新连接失败",
+        description: "无法接收实时更新，请刷新页面重试",
+        color: "warning",
+      });
+    }
+  });
+
   const columns = [
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
     { key: "endpoint", label: "主控" },
-    { key: "tunnelAddress", label: "隧道地址" },
+    { key: "tunnelAddress", label: "实例地址" },
     { key: "targetAddress", label: "目标地址" },
     { key: "status", label: "状态" },
     { key: "actions", label: "操作" },
   ];
 
-  // 更新隧道状态的函数
+  // 更新实例状态的函数
   const handleStatusChange = (tunnelId: string, isRunning: boolean) => {
     setTunnels(prev => prev.map(tunnel => 
       tunnel.id === tunnelId 
@@ -124,7 +145,7 @@ export default function TunnelsPage() {
     ));
   };
 
-  // 删除隧道的函数
+  // 删除实例的函数
   const handleDeleteTunnel = (tunnelId: string) => {
     setTunnels(prev => prev.filter(tunnel => tunnel.id !== tunnelId));
   };
@@ -132,7 +153,7 @@ export default function TunnelsPage() {
   // 操作按钮处理函数
   const handleToggleStatus = (tunnel: any) => {
     if (!tunnel.instanceId) {
-      alert('此隧道缺少NodePass ID，无法执行操作');
+      alert('此实例缺少NodePass ID，无法执行操作');
       return;
     }
     const isRunning = tunnel.status.type === "success";
@@ -151,7 +172,7 @@ export default function TunnelsPage() {
 
   const handleRestart = (tunnel: any) => {
     if (!tunnel.instanceId) {
-      alert('此隧道缺少NodePass ID，无法执行操作');
+      alert('此实例缺少NodePass ID，无法执行操作');
       return;
     }
     restart({
@@ -174,19 +195,9 @@ export default function TunnelsPage() {
 
   const confirmDelete = () => {
     if (deleteModalTunnel) {
-      if (!deleteModalTunnel.instanceId) {
-        addToast({
-          title: "删除失败",
-          description: "此隧道缺少 NodePass ID，无法执行删除操作",
-          color: "danger",
-        });
-        onOpenChange();
-        return;
-      }
-
       deleteTunnel({
         tunnelId: deleteModalTunnel.id,
-        instanceId: deleteModalTunnel.instanceId,
+        instanceId: deleteModalTunnel.instanceId || '',
         tunnelName: deleteModalTunnel.name,
         redirectAfterDelete: false,
         onSuccess: () => {
@@ -423,8 +434,8 @@ export default function TunnelsPage() {
                       <FontAwesomeIcon icon={faEye} className="text-2xl text-default-400" />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-default-500 text-sm font-medium">暂无隧道实例</p>
-                      <p className="text-default-400 text-xs">您还没有创建任何隧道实例</p>
+                      <p className="text-default-500 text-sm font-medium">暂无实例实例</p>
+                      <p className="text-default-400 text-xs">您还没有创建任何实例实例</p>
                     </div>
                   </div>
                 </div>
@@ -468,7 +479,7 @@ export default function TunnelsPage() {
                         </Chip>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-default-500 w-12 flex-shrink-0">隧道:</span>
+                        <span className="text-xs text-default-500 w-12 flex-shrink-0">实例:</span>
                         <span className="text-xs font-mono text-default-600 truncate">{tunnel.tunnelAddress}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -522,7 +533,7 @@ export default function TunnelsPage() {
             <div className="hidden md:block">
               <Table
                 shadow="none"
-                aria-label="隧道实例表格"
+                aria-label="实例实例表格"
                 className="min-w-full"
                 selectionMode="multiple"
                 selectedKeys={selectedKeys}
@@ -582,8 +593,8 @@ export default function TunnelsPage() {
                             <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
                           </div>
                           <div className="space-y-2">
-                            <p className="text-default-500 text-base font-medium">暂无隧道实例</p>
-                            <p className="text-default-400 text-sm">您还没有创建任何隧道实例</p>
+                            <p className="text-default-500 text-base font-medium">暂无实例实例</p>
+                            <p className="text-default-400 text-sm">您还没有创建任何实例实例</p>
                           </div>
                         </div>
                       </div>
@@ -611,7 +622,7 @@ export default function TunnelsPage() {
                   <span>统计中...</span>
                 </div>
               ) : (
-                `共 ${filteredItems.length} 个隧道`
+                `共 ${filteredItems.length} 个实例`
               )}
             </Box>
             <div className="order-1 sm:order-2">
@@ -654,10 +665,10 @@ export default function TunnelsPage() {
                 {deleteModalTunnel && (
                   <>
                     <p className="text-default-600">
-                      您确定要删除隧道 <span className="font-semibold text-foreground">"{deleteModalTunnel.name}"</span> 吗？
+                      您确定要删除实例 <span className="font-semibold text-foreground">"{deleteModalTunnel.name}"</span> 吗？
                     </p>
                     <p className="text-small text-warning">
-                      ⚠️ 此操作不可撤销，隧道的所有配置和数据都将被永久删除。
+                      ⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。
                     </p>
                   </>
                 )}

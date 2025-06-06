@@ -65,13 +65,48 @@ export class NodePassAPI {
     return `${this.apiHost}${this.apiPrefix}`;
   }
 
+  // 使用代理发送请求
+  private async proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const isHttps = url.startsWith('https:');
+    
+    // 如果不是 HTTPS，直接使用普通 fetch
+    if (!isHttps) {
+      return fetch(url, options);
+    }
+
+    // 使用代理路由
+    const proxyResponse = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        method: options.method || 'GET',
+        headers: options.headers,
+        data: options.body ? JSON.parse(options.body as string) : undefined
+      })
+    });
+
+    const result = await proxyResponse.json();
+
+    // 创建一个模拟的 Response 对象
+    return new Response(JSON.stringify(result.data), {
+      status: result.status,
+      statusText: result.statusText,
+      headers: new Headers({
+        'Content-Type': 'application/json'
+      })
+    });
+  }
+
   // 测试连接（不使用重试机制）
   async testConnection(timeout: number = 10000): Promise<void> {
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), timeout);
 
     try {
-      const response = await fetch(`${this.getBaseURL()}/v1/events`, {
+      const response = await this.proxyFetch(`${this.getBaseURL()}/v1/events`, {
         headers: this.getHeaders(),
         signal: abortController.signal
       });
@@ -100,9 +135,9 @@ export class NodePassAPI {
 
   // 获取所有实例
   async getInstances(): Promise<Instance[]> {
-    const response = await fetch(`${this.getBaseURL()}/v1/instances`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances`, {
       method: 'GET',
-      headers: this.getHeaders(),
+      headers: this.getHeaders()
     });
 
     if (!response.ok) {
@@ -115,10 +150,10 @@ export class NodePassAPI {
 
   // 创建新实例
   async createInstance(data: CreateInstanceRequest): Promise<Instance> {
-    const response = await fetch(`${this.getBaseURL()}/v1/instances`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     });
 
     if (!response.ok) {
@@ -131,9 +166,9 @@ export class NodePassAPI {
 
   // 获取特定实例
   async getInstance(id: string): Promise<Instance> {
-    const response = await fetch(`${this.getBaseURL()}/v1/instances/${id}`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances/${id}`, {
       method: 'GET',
-      headers: this.getHeaders(),
+      headers: this.getHeaders()
     });
 
     if (!response.ok) {
@@ -146,10 +181,10 @@ export class NodePassAPI {
 
   // 更新实例
   async updateInstance(id: string, data: UpdateInstanceRequest): Promise<Instance> {
-    const response = await fetch(`${this.getBaseURL()}/v1/instances/${id}`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances/${id}`, {
       method: 'PATCH',
       headers: this.getHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     });
 
     if (!response.ok) {
@@ -162,9 +197,9 @@ export class NodePassAPI {
 
   // 删除实例
   async deleteInstance(id: string): Promise<void> {
-    const response = await fetch(`${this.getBaseURL()}/v1/instances/${id}`, {
+    const response = await this.proxyFetch(`${this.getBaseURL()}/v1/instances/${id}`, {
       method: 'DELETE',
-      headers: this.getHeaders(),
+      headers: this.getHeaders()
     });
 
     if (!response.ok) {
@@ -203,8 +238,8 @@ export class NodePassAPI {
       // 创建新的 AbortController
       this.abortController = new AbortController();
 
-      // 使用 fetch API 建立 SSE 连接
-      const response = await fetch(`${this.getBaseURL()}/v1/events`, {
+      // 使用代理发送请求
+      const response = await this.proxyFetch(`${this.getBaseURL()}/v1/events`, {
         headers: this.getHeaders(),
         signal: this.abortController.signal
       });

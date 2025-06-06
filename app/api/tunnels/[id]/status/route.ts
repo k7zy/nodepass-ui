@@ -89,7 +89,10 @@ export async function PATCH(
       // 更新隧道状态
       const updatedTunnel = await prisma.tunnel.update({
         where: { id: tunnelId },
-        data: { status: newStatus }
+        data: { 
+          status: newStatus,
+          lastEventTime: new Date() // 添加事件时间
+        }
       });
 
       // 记录成功日志
@@ -99,7 +102,7 @@ export async function PATCH(
           tunnelName: tunnel.name,
           action: action,
           status: "success",
-          message: `${action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启'}隧道成功`
+          message: `${action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启'}隧道成功，状态: ${newStatus}`
         }
       });
 

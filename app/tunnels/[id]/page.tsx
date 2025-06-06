@@ -279,12 +279,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         // 调用API获取最新数据
         const response = await fetch(`/api/tunnels/${resolvedParams.id}/details`);
         if (!response.ok) {
-          throw new Error('获取隧道详情失败');
+          throw new Error('获取实例详情失败');
         }
         
         const data = await response.json();
         
-        // 只更新隧道信息，不影响日志
+        // 只更新实例信息，不影响日志
         if (data.tunnelInfo) {
           setTunnelInfo(data.tunnelInfo);
           console.log('[前端SSE] 页面数据更新成功', {
@@ -315,12 +315,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       // 调用API获取最新数据
       const response = await fetch(`/api/tunnels/${resolvedParams.id}/details`);
       if (!response.ok) {
-        throw new Error('获取隧道详情失败');
+        throw new Error('获取实例详情失败');
       }
       
       const data = await response.json();
       
-      // 只更新隧道信息，不影响日志
+      // 只更新实例信息，不影响日志
       if (data.tunnelInfo) {
         setTunnelInfo(data.tunnelInfo);
         console.log('[前端手动刷新] 页面数据刷新成功', {
@@ -340,7 +340,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   }, [resolvedParams.id]);
 
-  // 使用共用的隧道操作 hook
+  // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
 
   const previousStatsRef = React.useRef<{
@@ -359,15 +359,15 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     udp_out_rates: []
   });
 
-  // 获取隧道详情和历史数据
+  // 获取实例详情和历史数据
   const fetchTunnelDetails = React.useCallback(async () => {
     try {
       setLoading(true);
       
-      // 获取隧道基本信息和历史数据
+      // 获取实例基本信息和历史数据
       const response = await fetch(`/api/tunnels/${resolvedParams.id}/details`);
       if (!response.ok) {
-        throw new Error('获取隧道详情失败');
+        throw new Error('获取实例详情失败');
       }
       
       const data = await response.json();
@@ -375,7 +375,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       // 设置基本信息
       setTunnelInfo(data.tunnelInfo);
       
-      console.log('[前端数据] 隧道信息获取成功', {
+      console.log('[前端数据] 实例信息获取成功', {
         tunnelInfo: data.tunnelInfo,
         endpointId: data.tunnelInfo?.endpointId,
         instanceId: data.tunnelInfo?.instanceId,
@@ -416,9 +416,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
       setInitialDataLoaded(true);
     } catch (error) {
-      console.error('获取隧道详情失败:', error);
+      console.error('获取实例详情失败:', error);
       addToast({
-        title: "获取隧道详情失败",
+        title: "获取实例详情失败",
         description: error instanceof Error ? error.message : "未知错误",
         color: "danger",
       });
@@ -449,10 +449,10 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   });
   
-  // 使用隧道SSE监听更新 - 使用统一的SSE hook
+  // 使用实例SSE监听更新 - 使用统一的SSE hook
   useTunnelSSE(tunnelInfo?.instanceId || '', {
     onMessage: (data) => {
-      console.log('[前端SSE] 收到隧道SSE消息', data);
+      console.log('[前端SSE] 收到实例SSE消息', data);
       
       // 处理log类型的事件
       if (data.type === 'log' && data.logs) {
@@ -496,10 +496,10 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       }
     },
     onError: (error) => {
-      console.error('[前端SSE] 隧道SSE连接错误', error);
+      console.error('[前端SSE] 实例SSE连接错误', error);
     },
     onConnected: () => {
-      console.log('[前端SSE] 隧道SSE连接成功');
+      console.log('[前端SSE] 实例SSE连接成功');
     }
   });
 
@@ -808,7 +808,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <p className="text-default-500 text-base md:text-lg">暂无流量数据</p>
-                  <p className="text-default-400 text-xs md:text-sm mt-2">当隧道运行时，流量趋势数据将在此显示</p>
+                  <p className="text-default-400 text-xs md:text-sm mt-2">当实例运行时，流量趋势数据将在此显示</p>
                 </div>
               </div>
             ) : (

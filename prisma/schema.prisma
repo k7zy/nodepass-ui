@@ -102,11 +102,13 @@ model Tunnel {
   
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  lastEventTime DateTime?    // 添加事件时间字段，用于确保按正确顺序处理更新
   endpoint      Endpoint     @relation(fields: [endpointId], references: [id], onDelete: Cascade)
 
   @@unique([endpointId, instanceId])
   @@index([status])
   @@index([createdAt])
+  @@index([lastEventTime])
 }
 
 // 操作日志表

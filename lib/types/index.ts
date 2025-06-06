@@ -112,6 +112,7 @@ export interface SSEConnection {
   reconnectTimeout: NodeJS.Timeout | null;
   lastEventTime: number;
   isHealthy: boolean;
+  manuallyDisconnected: boolean;
 }
 
 // SSE 推送数据接口（原 ResponseSSE）

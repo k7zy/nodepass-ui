@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { logTunnelOperation } from '@/lib/operation-log';
 import { convertBigIntToNumber } from "@/lib/utils";
 import { fetchWithSSLSupport } from '@/lib/utils/fetch';
+import { logger } from '@/lib/server/logger';
 
 // PATCH /api/tunnels/[instanceId] - 更新隧道状态（启动/停止/重启）
 export async function PATCH(
@@ -142,86 +143,76 @@ export async function DELETE(
       );
     }
 
-    if (!tunnel.instanceId) {
-      return NextResponse.json(
-        { error: "隧道实例ID不存在" },
-        { status: 400 }
-      );
-    }
+    // 如果存在 instanceId，则尝试调用 NodePass API 删除实例
+    if (tunnel.instanceId) {
+      try {
+        // 构建 NodePass API 请求 URL
+        const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${tunnel.instanceId}`;
 
-    try {
-      // 构建 NodePass API 请求 URL
-      const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/v1/instances/${tunnel.instanceId}`;
-
-      // 调用 NodePass API 删除实例
-      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': tunnel.endpoint.apiKey
-        }
-      });
-
-      if (!nodepassResponse.ok) {
-        const errorText = await nodepassResponse.text();
-        throw new Error(`NodePass API 响应错误: ${nodepassResponse.status} - ${errorText}`);
-      }
-
-      // NodePass API 调用成功后，删除本地数据库记录
-      await prisma.tunnel.delete({
-        where: { id: tunnelId }
-      });
-
-      // 更新端点的实例数量
-      await prisma.endpoint.update({
-        where: { id: tunnel.endpointId },
-        data: {
-          tunnelCount: {
-            decrement: 1
+        // 调用 NodePass API 删除实例
+        const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': tunnel.endpoint.apiKey
           }
+        });
+
+        if (!nodepassResponse.ok) {
+          const errorText = await nodepassResponse.text();
+          logger.warn(`NodePass API 响应错误: ${nodepassResponse.status} - ${errorText}，继续删除本地记录`);
         }
-      });
-
-      // 记录操作日志
-      await prisma.tunnelOperationLog.create({
-        data: {
-          tunnelId: tunnelId,
-          tunnelName: tunnel.name,
-          action: 'delete',
-          status: "success",
-          message: `删除隧道成功`
-        }
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "隧道已成功删除"
-      });
-
-    } catch (apiError: any) {
-      // 记录失败日志
-      await prisma.tunnelOperationLog.create({
-        data: {
-          tunnelId: tunnelId,
-          tunnelName: tunnel.name,
-          action: 'delete',
-          status: "error",
-          message: `删除隧道失败: ${apiError.message}`
-        }
-      });
-
-      return NextResponse.json({
-        success: false,
-        error: "调用 NodePass API 失败",
-        message: apiError.message
-      }, { status: 500 });
+      } catch (error: any) {
+        logger.warn(`调用 NodePass API 删除失败: ${error.message}，继续删除本地记录`);
+      }
     }
+
+    // 删除本地数据库记录
+    const result = await prisma.tunnel.deleteMany({
+      where: { id: tunnelId }
+    });
+
+    // 如果没有删除任何记录，说明隧道可能已经被删除了
+    if (result.count === 0) {
+      logger.warn(`隧道 ${tunnelId} 已经被删除或不存在`);
+    }
+
+    // 更新端点的实例数量
+    await prisma.endpoint.update({
+      where: { id: tunnel.endpointId },
+      data: {
+        tunnelCount: {
+          decrement: 1
+        }
+      }
+    });
+
+    // 记录操作日志
+    await prisma.tunnelOperationLog.create({
+      data: {
+        tunnelId: tunnelId,
+        tunnelName: tunnel.name,
+        action: 'delete',
+        status: "success",
+        message: tunnel.instanceId 
+          ? `删除隧道及远程实例成功` 
+          : `删除本地隧道记录成功`
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: tunnel.instanceId 
+        ? "隧道及远程实例已成功删除" 
+        : "本地隧道记录已成功删除"
+    });
 
   } catch (error) {
-    console.error("删除隧道失败:", error);
-    return NextResponse.json(
-      { error: "删除隧道失败" },
-      { status: 500 }
-    );
+    logger.error('删除隧道失败:', error);
+    return NextResponse.json({
+      success: false,
+      error: '删除隧道失败',
+      details: error instanceof Error ? error.message : '未知错误'
+    }, { status: 500 });
   }
 } 

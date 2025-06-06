@@ -98,12 +98,12 @@ export class SSEManager {
 
   // 发送基于instanceId的隧道更新 - 直接转发原始数据
   public sendTunnelUpdateByInstanceId(instanceId: string, rawData: any) {
-    console.log(`[SSE-Manager] 尝试推送隧道更新`, {
-      目标instanceId: instanceId,
-      数据类型: rawData.type,
-      当前订阅者总数: this.subscribers.size,
-      实例标识: this.constructor.name + '@' + this.hashCode()
-    });
+    // console.log(`[SSE-Manager] 尝试推送隧道更新`, {
+    //   目标instanceId: instanceId,
+    //   数据类型: rawData.type,
+    //   当前订阅者总数: this.subscribers.size,
+    //   实例标识: this.constructor.name + '@' + this.hashCode()
+    // });
 
     const encoder = new TextEncoder();
     let sentCount = 0;
@@ -112,10 +112,10 @@ export class SSEManager {
     for (const [subscriberId, subscriber] of this.subscribers) {
       if (subscriber.type === SSEEventTypes.TUNNEL) {
         tunnelSubscriberCount++;
-        console.log(`[SSE-Manager] 检查隧道订阅者: ${subscriberId}`, {
-          订阅者instanceId: subscriber.instanceId,
-          匹配instanceId: subscriber.instanceId === instanceId
-        });
+        // console.log(`[SSE-Manager] 检查隧道订阅者: ${subscriberId}`, {
+        //   订阅者instanceId: subscriber.instanceId,
+        //   匹配instanceId: subscriber.instanceId === instanceId
+        // });
         
         if (subscriber.instanceId === instanceId) {
           try {
@@ -166,6 +166,41 @@ export class SSEManager {
     }
     
     console.log(`[SSE-Manager] 仪表盘更新已发送给 ${sentCount} 个订阅者`);
+  }
+
+  // 发送全局更新消息
+  public sendGlobalUpdate(data: any) {
+    // console.log(`[SSE-Manager] 准备发送全局更新`, {
+    //   事件类型: data.type,
+    //   数据: JSON.stringify(data)
+    // });
+
+    const encoder = new TextEncoder();
+    let sentCount = 0;
+    let globalSubscriberCount = 0;
+    
+    for (const [subscriberId, subscriber] of this.subscribers) {
+      if (subscriber.type === SSEEventTypes.GLOBAL) {
+        globalSubscriberCount++;
+        try {
+          subscriber.controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+          );
+          sentCount++;
+          console.log(`[SSE-Manager] ✅ 成功推送全局更新给订阅者: ${subscriberId}`);
+        } catch (error) {
+          console.error(`[SSE-Manager] ❌ 推送全局更新失败给订阅者: ${subscriberId}`, error);
+          // 移除失效的订阅者
+          this.removeSubscriber(subscriberId);
+        }
+      }
+    }
+    
+    console.log(`[SSE-Manager] 全局更新推送完成`, {
+      成功推送数量: sentCount,
+      全局订阅者总数: globalSubscriberCount,
+      全部订阅者总数: this.subscribers.size
+    });
   }
 
   // 获取统计信息

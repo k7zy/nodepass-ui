@@ -15,7 +15,7 @@ import { initializeSystem, cleanupExpiredSessions } from './auth-service';
 /**
  * SSE服务 - 监听NodePass端点并转发给前端
  */
-class SSEService {
+export class SSEService {
   private static instance: SSEService;
   private connections: Map<string, SSEConnection>;
   private eventEmitter: EventEmitter;
@@ -54,12 +54,7 @@ class SSEService {
 
       // 🚀 系统初始化
       logger.info('检查系统初始化状态...');
-      const result = await initializeSystem();
-      if (result) {
-        logger.info('系统初始化完成', { username: result.username });
-      } else {
-        logger.info('系统已经初始化过了');
-      }
+      await initializeSystem();
       
       // 清理过期会话
       await cleanupExpiredSessions();
@@ -79,12 +74,31 @@ class SSEService {
       });
       
       // 异步为每个端点建立连接，不等待连接结果
-      const connectionPromises = endpoints.map(endpoint => 
-        this.connectEndpoint(endpoint.id, false).catch(error => {
+      const connectionPromises = endpoints.map(endpoint => {
+        // 创建新的连接对象，确保初始化时重置手动断开标记
+        const connection: SSEConnection = {
+          url: endpoint.url,
+          apiPath: endpoint.apiPath,
+          apiKey: endpoint.apiKey,
+          controller: null,
+          retryCount: 0,
+          maxRetries: 3,
+          lastError: null,
+          reconnectTimeout: null,
+          lastEventTime: Date.now(),
+          isHealthy: true,
+          manuallyDisconnected: false // 确保初始化时重置手动断开标记
+        };
+        
+        // 存储连接对象
+        this.connections.set(endpoint.id.toString(), connection);
+        
+        // 尝试连接
+        return this.connectEndpoint(endpoint.id, false).catch(error => {
           logger.warn(`端点 ${endpoint.id} (${endpoint.name}) 初始化连接失败，将进入重试机制`, error);
           // 不抛出错误，让其他端点继续连接
-        })
-      );
+        });
+      });
       
       // 标记服务已初始化（不等待所有连接完成）
       this.isInitialized = true;
@@ -133,9 +147,13 @@ class SSEService {
         lastError: null,
         reconnectTimeout: null,
         lastEventTime: Date.now(),
-        isHealthy: true
+        isHealthy: true,
+        manuallyDisconnected: false
       };
     }
+
+    // 重置手动断开标记
+    connection.manuallyDisconnected = false;
 
     try {
       // 建立 SSE 连接
@@ -168,183 +186,12 @@ class SSEService {
       connection.isHealthy = false;
       // 存储连接信息
       this.connections.set(endpointId.toString(), connection);      
-      // 触发重连机制（无论是否抛出错误）
-      this.triggerReconnect(endpointId, connection);
+      // 只有在不是手动断开的情况下才触发重连
+      if (!connection.manuallyDisconnected) {
+        this.triggerReconnect(endpointId, connection);
+      }
       
       if (throwOnError) throw error;
-    }
-  }
-
-  /**
-   * 处理SSE数据流
-   */
-  private async processSSEStream(
-    reader: ReadableStreamDefaultReader<Uint8Array>,
-    decoder: TextDecoder,
-    buffer: string,
-    endpointId: number,
-    endpointName: string,
-    connection: SSEConnection
-  ) {
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        // 更新最后事件时间
-        connection.lastEventTime = Date.now();
-
-        // 解码数据
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        // 处理每一行
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const eventData = JSON.parse(line.slice(6));
-              logger.debug(`[SSE-Service] 端点 ${endpointId} 收到SSE事件:`, eventData);
-              
-              // 处理事件
-              await this.handleSSEEvent(endpointId, endpointName, eventData);
-              
-            } catch (parseError) {
-              logger.error(`[SSE-Service] 解析端点 ${endpointId} SSE事件失败: ${parseError}`);
-              logger.debug('原始数据:', line);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      logger.error(`[SSE-Service] 处理端点 ${endpointId} SSE流失败`, error);
-      connection.isHealthy = false;
-      connection.lastError = error instanceof Error ? error.message : String(error);
-    }
-  }
-
-  /**
-   * 处理SSE事件
-   */
-  private async handleSSEEvent(endpointId: number, endpointName: string, eventData: any) {
-    try {
-      const { type, time, instance, logs } = eventData;
-      
-      if (!instance || !instance.id) {
-        logger.warn(`[SSE-Service] 端点 ${endpointId} 事件缺少实例信息`, eventData);
-        return;
-      }
-
-      const instanceId = instance.id;
-      const eventTime = time ? new Date(time) : new Date();
-
-      // 确定事件类型
-      let sseEventType: SSEEventType;
-      switch (type) {
-        case 'initial':
-          sseEventType = 'initial';
-          break;
-        case 'create':
-          sseEventType = 'create';
-          break;
-        case 'update':
-          sseEventType = 'update';
-          break;
-        case 'delete':
-          sseEventType = 'delete';
-          break;
-        case 'shutdown':
-          sseEventType = 'shutdown';
-          break;
-        case 'log':
-          sseEventType = 'log';
-          break;
-        default:
-          logger.warn(`[SSE-Service] 未知的SSE事件类型: ${type}`);
-          return;
-      }
-
-      // 存储到数据库
-      await prisma.endpointSSE.create({
-        data: {
-          eventType: sseEventType,
-          pushType: type,
-          eventTime,
-          endpointId,
-          instanceId,
-          instanceType: instance.type,
-          status: instance.status,
-          url: instance.url,
-          tcpRx: instance.tcprx ? BigInt(instance.tcprx) : null,
-          tcpTx: instance.tcptx ? BigInt(instance.tcptx) : null,
-          udpRx: instance.udprx ? BigInt(instance.udprx) : null,
-          udpTx: instance.udptx ? BigInt(instance.udptx) : null,
-          logs: logs || null
-        }
-      });
-
-      logger.info(`[SSE-Service] 端点 ${endpointId} ${type} 事件已存储`, {
-        instanceId,
-        type: instance.type,
-        status: instance.status
-      })
-
-      // 处理初始化事件 - 更新隧道统计
-      if (type === 'initial') {
-        await this.updateTunnelStats(endpointId);
-      } else {
-        // 转发给前端订阅者
-        logger.info(`[SSE-Service] 转发隧道更新到instanceId: ${instanceId}`, {
-          消息类型: type,
-          端点: endpointName,
-          SSE管理器实例: this.sseManager.getStats().instanceId
-        });
-
-        this.sseManager.sendTunnelUpdateByInstanceId(instanceId, eventData);
-      }
-
-    } catch (error) {
-      logger.error(`[SSE-Service] 处理端点 ${endpointId} SSE事件失败`, error);
-    }
-  }
-
-  /**
-   * 更新隧道统计
-   */
-  private async updateTunnelStats(endpointId: number) {
-    try {
-      // 获取该端点的所有运行中实例
-      const runningInstances = await prisma.endpointSSE.findMany({
-        where: {
-          endpointId,
-          status: 'running'
-        },
-        distinct: ['instanceId'],
-        orderBy: {
-          eventTime: 'desc'
-        }
-      });
-
-      const runningCount = runningInstances.length;
-
-      // 获取总实例数
-      const totalInstances = await prisma.endpointSSE.findMany({
-        where: { endpointId },
-        distinct: ['instanceId']
-      });
-
-      const totalCount = totalInstances.length;
-
-      // 更新端点的隧道数量
-      await prisma.endpoint.update({
-        where: { id: endpointId },
-        data: { tunnelCount: runningCount }
-      });
-
-      logger.debug(`[SSE-Service] 端点 ${endpointId} 隧道统计已更新: ${runningCount}/${totalCount} 个运行中`);
-
-    } catch (error) {
-      logger.error(`[SSE-Service] 更新端点 ${endpointId} 隧道统计失败`, error);
     }
   }
 
@@ -395,21 +242,106 @@ class SSEService {
   /**
    * 执行健康检查
    */
-  private performHealthCheck() {
+  private async performHealthCheck() {
     const now = Date.now();
     const timeout = 60000; // 60秒超时
     
-    for (const [endpointId, connection] of this.connections.entries()) {
-      if (now - connection.lastEventTime > timeout) {
-        logger.warn(`端点 ${endpointId} 健康检查失败，连接可能已断开`);
-        connection.isHealthy = false;
-        
-        // 如果连接仍然存在但不健康，尝试重连
-        if (!connection.controller?.signal.aborted) {
-          logger.info(`尝试重连不健康的端点 ${endpointId}`);
-          this.triggerReconnect(parseInt(endpointId), connection);
+    try {
+      // 获取所有有效的端点
+      const validEndpoints = await prisma.endpoint.findMany({
+        select: {
+          id: true,
+          status: true
+        }
+      });
+      
+      // 创建有效端点ID的集合
+      const validEndpointIds = new Set(validEndpoints.map(e => e.id.toString()));
+      
+      // 检查并清理无效的连接
+      for (const [endpointId, connection] of this.connections.entries()) {
+        // 如果端点已被删除，移除连接
+        if (!validEndpointIds.has(endpointId)) {
+          logger.info(`端点 ${endpointId} 已被删除，移除健康检查`);
+          await this.disconnectEndpoint(parseInt(endpointId));
+          continue;
+        }
+
+        // 如果是手动断开的连接，移除连接
+        if (connection.manuallyDisconnected) {
+          logger.info(`端点 ${endpointId} 已手动断开，移除健康检查`);
+          await this.disconnectEndpoint(parseInt(endpointId));
+          continue;
+        }
+
+        // 检查连接是否超时
+        if (now - connection.lastEventTime > timeout) {
+          // 检查连接是否仍然有效
+          try {
+            const isConnected = await this.checkEndpointConnection(parseInt(endpointId), connection);
+            if (!isConnected) {
+              logger.warn(`端点 ${endpointId} 健康检查失败，连接可能已断开`);
+              connection.isHealthy = false;
+              
+              // 如果连接仍然存在但不健康，尝试重连
+              if (!connection.controller?.signal.aborted) {
+                logger.info(`尝试重连不健康的端点 ${endpointId}`);
+                this.triggerReconnect(parseInt(endpointId), connection);
+              }
+            } else {
+              // 如果连接检查成功，更新最后事件时间
+              connection.lastEventTime = now;
+              connection.isHealthy = true;
+              logger.debug(`端点 ${endpointId} 健康检查成功`);
+            }
+          } catch (error) {
+            logger.error(`端点 ${endpointId} 健康检查出错:`, error);
+            connection.isHealthy = false;
+          }
         }
       }
+    } catch (error) {
+      logger.error('执行健康检查时出错:', error);
+    }
+  }
+
+  /**
+   * 检查端点连接是否有效
+   * 使用轻量级的 HEAD 请求检查连接，而不是建立新的 SSE 连接
+   */
+  private async checkEndpointConnection(endpointId: number, connection: SSEConnection): Promise<boolean> {
+    try {
+      const { url, apiPath, apiKey } = connection;
+      // 使用API根路径进行检查，而不是SSE端点
+      const checkUrl = `${url}${apiPath}/v1`;
+      
+      // 创建自定义的 HTTPS agent 来跳过 SSL 验证
+      const httpsAgent = new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+        timeout: 5000 // 5秒超时
+      });
+
+      const isHttps = checkUrl.startsWith('https:');
+      
+      // 创建控制器用于超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(checkUrl, {
+        method: 'HEAD', // 使用HEAD请求，只检查连接性
+        headers: {
+          'X-API-Key': apiKey
+        },
+        agent: isHttps ? httpsAgent : undefined,
+        signal: controller.signal as any
+      });
+
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch (error) {
+      logger.error(`检查端点 ${endpointId} 连接状态失败:`, error);
+      return false;
     }
   }
 
@@ -443,6 +375,32 @@ class SSEService {
       });
       logger.info(`端点 ${endpointId} 状态已重置为离线`);
 
+      // 创建新的连接对象（确保重置手动断开标记）
+      const endpoint = await prisma.endpoint.findUnique({
+        where: { id: endpointId }
+      });
+
+      if (!endpoint) {
+        throw new Error('端点不存在');
+      }
+
+      const connection: SSEConnection = {
+        url: endpoint.url,
+        apiPath: endpoint.apiPath,
+        apiKey: endpoint.apiKey,
+        controller: null,
+        retryCount: 0,
+        maxRetries: 3,
+        lastError: null,
+        reconnectTimeout: null,
+        lastEventTime: Date.now(),
+        isHealthy: true,
+        manuallyDisconnected: false // 确保重置手动断开标记
+      };
+
+      // 存储新的连接对象
+      this.connections.set(endpointId.toString(), connection);
+
       // 重新连接
       await this.connectEndpoint(endpointId);
       
@@ -475,6 +433,9 @@ class SSEService {
       logger.info(`端点 ${endpointId} 没有活跃连接，已设置为离线状态`);
       return;
     }
+
+    // 设置手动断开标记
+    connection.manuallyDisconnected = true;
 
     // 先中止控制器（如果存在）
     if (connection.controller) {
@@ -606,7 +567,7 @@ class SSEService {
           'X-API-Key': apiKey,
           'Cache-Control': 'no-cache'
         },
-        signal: controller.signal,
+        signal: controller.signal as any, // 使用类型断言解决类型不兼容问题
         agent: isHttps ? httpsAgent : undefined // 只有HTTPS才使用自定义agent
       });
       
@@ -638,7 +599,7 @@ class SSEService {
                 connection.isHealthy = true;
                 
                 // Debug输出到控制台
-                logger.debug(`端点 ${endpointId} 收到SSE事件:`, eventData);
+                logger.debug(`端点 ${endpointId} 收到SSE事件: `, JSON.stringify(eventData));
                 
                 // 异步处理并存储SSE事件到数据库
                 this.processSSEEvent(Number(endpointId), eventData).catch((error: unknown) => {
@@ -714,12 +675,12 @@ class SSEService {
       // 解析事件时间
       const eventTime = eventData.time ? new Date(eventData.time) : new Date();
 
-      console.log(`[SSE-Service] 处理SSE事件`, {
-        endpointId,
-        事件类型: eventData.type,
-        事件时间: eventTime,
-        原始数据: JSON.stringify(eventData, null, 2)
-      });
+      // console.log(`[SSE-Service] 处理SSE事件`, {
+      //   endpointId,
+      //   事件类型: eventData.type,
+      //   事件时间: eventTime,
+      //   原始数据: JSON.stringify(eventData, null, 2)
+      // });
 
       // 存储平铺的实例数据
       await this.storeInstanceData(endpointId, eventData.type, eventTime, eventData);
@@ -728,25 +689,40 @@ class SSEService {
       const instance = eventData.instance || eventData;
       const instanceId = instance.id || eventData.id;
 
-      console.log(`[SSE-Service] 提取实例信息`, {
-        endpointId,
-        instanceId,
-        实例数据: instance ? JSON.stringify(instance, null, 2) : '无实例数据'
-      });
+      // console.log(`[SSE-Service] 提取实例信息`, {
+      //   endpointId,
+      //   instanceId,
+      //   实例数据: instance ? JSON.stringify(instance, null, 2) : '无实例数据'
+      // });
 
       // 使用全局SSE管理器转发事件
       if (instanceId) {
-        if(eventData.type !== 'initial'){
-          console.log(`[SSE-Service] 准备转发数据到全局SSE管理器`, {
-            instanceId,
-            事件类型: eventData.type
-          });
 
-          // 直接转发原始数据，不进行任何包装
+        if (eventData.type !== 'initial') {
+          // console.log(`[SSE-Service] 准备转发数据到特定SSE管理器`, {
+          //   instanceId,
+          //   事件类型: eventData.type
+          // });
+          //直接转发原始数据，不进行任何包装
           const sseManager = getGlobalSSEManager();
-          sseManager.sendTunnelUpdateByInstanceId(instanceId, eventData);
-
-          console.log(`[SSE-Service] ✅ 数据已发送给全局SSE管理器`);
+          // 1. 转发到特定隧道的SSE通道
+          this.sseManager.sendTunnelUpdateByInstanceId(instanceId, eventData);
+        }
+        // 只有非 log 类型的事件才转发
+        if (eventData.type !== 'log') {
+          // console.log(`[SSE-Service] 准备转发数据到全局SSE管理器`, {
+          //   instanceId,
+          //   事件类型: eventData.type
+          // });
+          // 2. 同时转发到全局SSE通道
+          this.sseManager.sendGlobalUpdate({
+            type: eventData.type,
+            endpointId,
+            instanceId,
+            instance,
+            timestamp: eventTime.toISOString(),
+            data: eventData
+          });
         }
       } else {
         console.warn(`[SSE-Service] ⚠️ 无法提取instanceId，跳过转发`, {
@@ -1122,7 +1098,8 @@ class SSEService {
                 logLevel: tunnelConfig.logLevel as any,
                 commandLine: instance.url || '',
                 instanceId: instanceId || null, // 存储SSE推送的实例ID
-                ...trafficData // 包含流量统计数据
+                ...trafficData, // 包含流量统计数据
+                lastEventTime: eventData.time ? new Date(eventData.time) : new Date() // 添加事件时间
               }
             });
             
@@ -1159,49 +1136,64 @@ class SSEService {
         logger.warn(`端点 ${endpointId} 更新事件的实例缺少ID，跳过处理`);
         return;
       }
-      
-      // 查找现有隧道实例 - 使用instanceId字段
-      const existingTunnel = await prisma.tunnel.findFirst({
+
+      // 获取事件时间
+      const eventTime = eventData.time ? new Date(eventData.time) : new Date();
+
+      // 准备流量统计数据
+      const trafficData = {
+        tcpRx: instance.tcprx ? BigInt(instance.tcprx) : BigInt(0),
+        tcpTx: instance.tcptx ? BigInt(instance.tcptx) : BigInt(0),
+        udpRx: instance.udprx ? BigInt(instance.udprx) : BigInt(0),
+        udpTx: instance.udptx ? BigInt(instance.udptx) : BigInt(0),
+      };
+
+      // 先获取当前隧道数据
+      const currentTunnel = await prisma.tunnel.findUnique({
         where: {
-          endpointId: endpointId,
-          instanceId: instanceId
+          endpointId_instanceId: {
+            endpointId,
+            instanceId
+          }
         }
       });
-      
-      if (existingTunnel) {
-        // 更新隧道状态
+
+      // 如果找到现有隧道，比较状态和流量是否有变化
+      if (currentTunnel) {
         const newStatus = instance.status === 'running' ? 'running' : 'stopped';
+        const statusChanged = currentTunnel.status !== newStatus;
         
-        // 准备流量统计数据
-        const trafficData = {
-          tcpRx: instance.tcprx ? BigInt(instance.tcprx) : BigInt(0),
-          tcpTx: instance.tcptx ? BigInt(instance.tcptx) : BigInt(0),
-          udpRx: instance.udprx ? BigInt(instance.udprx) : BigInt(0),
-          udpTx: instance.udptx ? BigInt(instance.udptx) : BigInt(0),
-        };
-        
-        // 更新隧道状态和流量统计
-        await prisma.tunnel.update({
-          where: { id: existingTunnel.id },
-          data: {
-            status: newStatus,
-            ...trafficData
-          }
-        });
-        
-        logger.debug(`端点 ${endpointId} 更新隧道实例: ${instanceId} -> 状态: ${newStatus}, 流量: TCP(${instance.tcprx || 0}/${instance.tcptx || 0}) UDP(${instance.udprx || 0}/${instance.udptx || 0})`);
-        
-        // 发出事件通知前端更新页面
-        this.eventEmitter.emit('tunnel:updated', {
-          endpointId,
-          tunnelId: existingTunnel.id,
-          status: newStatus,
-          traffic: trafficData
-        });
+        // 检查流量是否有变化
+        const trafficChanged = 
+          currentTunnel.tcpRx !== trafficData.tcpRx ||
+          currentTunnel.tcpTx !== trafficData.tcpTx ||
+          currentTunnel.udpRx !== trafficData.udpRx ||
+          currentTunnel.udpTx !== trafficData.udpTx;
+
+        // 只有在状态或流量发生变化，且事件时间更新时才更新
+        if ((statusChanged || trafficChanged) && (!currentTunnel.lastEventTime || eventTime > currentTunnel.lastEventTime)) {
+          await prisma.tunnel.update({
+            where: {
+              endpointId_instanceId: {
+                endpointId,
+                instanceId
+              }
+            },
+            data: {
+              status: newStatus,
+              ...trafficData,
+              lastEventTime: eventTime
+            }
+          });
+          
+          logger.debug(`端点 ${endpointId} 更新隧道实例: ${instanceId} -> 状态: ${instance.status}${statusChanged ? ' (状态已变更)' : ''}, 流量: TCP(${instance.tcprx || 0}/${instance.tcptx || 0}) UDP(${instance.udprx || 0}/${instance.udptx || 0})${trafficChanged ? ' (流量已变更)' : ''}, 事件时间: ${eventTime.toISOString()}`);
+        } else {
+          logger.debug(`端点 ${endpointId} 隧道实例 ${instanceId} 跳过更新: ${!statusChanged && !trafficChanged ? '无变化' : '事件时间较旧'}, 当前事件时间: ${eventTime.toISOString()}`);
+        }
       } else {
-        logger.warn(`端点 ${endpointId} 要更新的隧道实例 ${instanceId} 不存在`);
+        // 如果隧道不存在，记录警告日志
+        logger.warn(`端点 ${endpointId} 收到未知隧道实例 ${instanceId} 的更新事件，已忽略。状态: ${instance.status}, 事件时间: ${eventTime.toISOString()}`);
       }
-      
     } catch (error) {
       logger.error(`处理端点 ${endpointId} 的更新隧道实例事件失败:`, error);
     }
@@ -1434,6 +1426,63 @@ class SSEService {
     if (callbacks.updated) this.eventEmitter.off('tunnel:updated', callbacks.updated);
     if (callbacks.deleted) this.eventEmitter.off('tunnel:deleted', callbacks.deleted);
     if (callbacks.shutdown) this.eventEmitter.off('endpoint:shutdown', callbacks.shutdown);
+  }
+
+  /**
+   * 测试端点连接
+   * @param url - 端点URL
+   * @param apiPath - API路径
+   * @param apiKey - API密钥
+   * @returns Promise<void>
+   */
+  public async testEndpointConnection(url: string, apiPath: string, apiKey: string): Promise<void> {
+    const sseUrl = `${url}${apiPath}/v1/events`;
+    logger.info(`测试SSE连接: ${sseUrl}`);
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时
+
+      // 创建自定义的 HTTPS agent 来跳过 SSL 验证
+      const httpsAgent = new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+        timeout: 3000 // 3秒超时
+      });
+
+      // 检查是否为HTTPS连接
+      const isHttps = sseUrl.startsWith('https:');
+      if (isHttps) {
+        logger.info(`使用HTTPS连接，已跳过SSL证书验证`);
+      }
+
+      const response = await fetch(sseUrl, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': apiKey,
+          'Cache-Control': 'no-cache'
+        },
+        signal: controller.signal as any,
+        agent: isHttps ? httpsAgent : undefined
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP错误: ${response.status}`);
+      }
+
+      // 如果连接成功，立即关闭它
+      controller.abort();
+      logger.info(`SSE连接测试成功: ${sseUrl}`);
+
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('连接超时，请检查端点是否可访问');
+      }
+      logger.error(`SSE连接测试失败:`, error);
+      throw error;
+    }
   }
 }
 

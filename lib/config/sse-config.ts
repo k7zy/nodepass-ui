@@ -49,7 +49,6 @@ export const getClientSSEConfig = () => {
 export const SSE_ENDPOINTS = {
   global: '/api/sse/global',
   tunnel: (instanceId: string) => `/api/sse/tunnel/${instanceId}`,
-  dashboard: '/api/sse/dashboard',
   internal: '/api/sse/internal'
 } as const;
 

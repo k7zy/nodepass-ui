@@ -98,7 +98,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
         {/* 左侧：标题和搜索框 */}
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center flex-1">
           <Box className="text-lg md:text-xl font-semibold flex-shrink-0">
-            <h1 className="text-xl md:text-2xl font-bold">隧道管理</h1>
+            <h1 className="text-xl md:text-2xl font-bold">实例管理</h1>
           </Box>
           <Box className="flex-1 sm:max-w-xs lg:max-w-sm">
             <Input
@@ -107,7 +107,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               classNames={{
                 inputWrapper: "bg-default-100",
               }}
-              placeholder="搜索隧道..."
+              placeholder="搜索实例..."
               startContent={<FontAwesomeIcon icon={faSearch} className="text-default-400 text-sm" />}
               value={filterValue}
               onClear={() => onClear()}
@@ -226,7 +226,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             onClick={() => router.push("/tunnels/create")}
             isDisabled={loading}
           >
-            <span className="hidden sm:inline">创建隧道</span>
+            <span className="hidden sm:inline">创建实例</span>
             <span className="sm:hidden">创建</span>
           </Button>
           <Dropdown>

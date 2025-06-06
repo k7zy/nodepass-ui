@@ -30,7 +30,7 @@ export function getGlobalSSEManager(): SSEManager {
     return initializeGlobalSSE();
   }
   
-  console.log('[Global-SSE] 返回现有的全局SSE管理器实例');
+  // console.log('[Global-SSE] 返回现有的全局SSE管理器实例');
   return global.__nodepass_sse_manager;
 }
 

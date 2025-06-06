@@ -29,7 +29,7 @@ import { Icon } from "@iconify/react";
 import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useRouter } from "next/navigation";
 import { EndpointStatus } from '@prisma/client';
-import { useGlobalSSE, useDashboardSSE } from '@/lib/hooks/use-sse';
+import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { buildApiUrl } from '@/lib/utils';
@@ -215,26 +215,25 @@ export default function DashboardPage() {
   // 使用全局SSE监听页面刷新事件
   useGlobalSSE({
     onMessage: (data) => {
+      // 处理页面刷新事件
       if (data.type === 'refresh' && data.route === '/dashboard') {
         router.refresh();
+        return;
       }
-    }
-  });
-  
-  // 使用仪表盘SSE监听流量趋势更新
-  useDashboardSSE({
-    onConnected: () => {
-      console.log('仪表盘SSE连接成功');
-    },
-    onMessage: (data) => {
-      if (data.type === 'dashboard_update') {
-        // 处理流量趋势更新
-        console.log('收到仪表盘更新:', data);
-        // 这里可以更新UI状态
+
+      // 处理隧道更新事件
+      if (['create', 'update', 'delete'].includes(data.type)) {
+        console.log('[仪表盘] 收到隧道更新事件:', data);
+        // 刷新隧道统计数据
+        fetchTunnelStats();
+        // 如果是创建或删除事件，也刷新端点数据
+        if (data.type === 'create' || data.type === 'delete') {
+          fetchEndpoints();
+        }
       }
     },
     onError: (error) => {
-      console.error('仪表盘SSE错误:', error);
+      console.error('[仪表盘] SSE连接错误:', error);
     }
   });
 

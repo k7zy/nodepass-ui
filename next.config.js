@@ -10,8 +10,7 @@ const nextConfig = {
   },
   // 禁用开发工具
   devIndicators: {
-    buildActivity: false,
-    buildActivityPosition: 'bottom-left',
+    position: 'bottom-left',
   },
   // 禁用所有调试功能
   reactStrictMode: true,

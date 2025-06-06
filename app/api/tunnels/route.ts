@@ -174,9 +174,15 @@ export async function POST(request: NextRequest) {
 
       const nodepassData = await nodepassResponse.json();
       
-      // 创建隧道实例，存储NodePass返回的ID
-      const tunnel = await prisma.tunnel.create({
-        data: {
+      // 使用 upsert 而不是 create，这样如果记录已存在就会更新
+      const tunnel = await prisma.tunnel.upsert({
+        where: {
+          endpointId_instanceId: {
+            endpointId,
+            instanceId: nodepassData.id
+          }
+        },
+        create: {
           name,
           endpointId,
           mode: mode as any,
@@ -189,9 +195,23 @@ export async function POST(request: NextRequest) {
           keyPath,
           logLevel: logLevel as any,
           commandLine,
-          instanceId: nodepassData.id, // 存储NodePass API返回的隧道ID
+          instanceId: nodepassData.id,
           status: nodepassData.status === 'running' ? TunnelStatus.running : TunnelStatus.stopped
-        } as any
+        },
+        update: {
+          name,
+          mode: mode as any,
+          tunnelAddress,
+          tunnelPort,
+          targetAddress,
+          targetPort,
+          tlsMode: tlsMode as any,
+          certPath,
+          keyPath,
+          logLevel: logLevel as any,
+          commandLine,
+          status: nodepassData.status === 'running' ? TunnelStatus.running : TunnelStatus.stopped
+        }
       });
 
       // 手动更新端点的实例数量
