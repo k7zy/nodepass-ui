@@ -23,10 +23,10 @@ export function buildApiUrl(path: string): string {
   
   // 在浏览器环境中
   if (typeof window !== 'undefined') {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (baseUrl) {
-      return `${baseUrl}${path}`;
-    }
+    // const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    // if (baseUrl) {
+    //   return `${baseUrl}${path}`;
+    // }
     // 如果没有配置基础URL，使用当前域名
     return `${window.location.origin}${path}`;
   }

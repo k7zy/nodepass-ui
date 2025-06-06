@@ -326,4 +326,64 @@ export async function changeUserPassword(username: string, currentPassword: stri
       message: '密码修改失败，请稍后重试'
     };
   }
+}
+
+/**
+ * 修改用户名
+ * @param currentUsername 当前用户名
+ * @param newUsername 新用户名
+ * @returns 修改结果
+ */
+export async function changeUsername(currentUsername: string, newUsername: string): Promise<{ success: boolean; message: string }> {
+  try {
+    // 验证当前用户名是否正确
+    const storedUsername = await getSystemConfig(SYSTEM_CONFIG_KEYS.ADMIN_USERNAME);
+    if (!storedUsername) {
+      return {
+        success: false,
+        message: '系统配置错误'
+      };
+    }
+
+    if (currentUsername !== storedUsername) {
+      return {
+        success: false,
+        message: '当前用户名不正确'
+      };
+    }
+
+    // 更新系统配置中的用户名
+    await setSystemConfig(
+      SYSTEM_CONFIG_KEYS.ADMIN_USERNAME,
+      newUsername,
+      '管理员用户名'
+    );
+
+    // 更新所有相关的会话
+    await prisma.userSession.updateMany({
+      where: {
+        username: currentUsername,
+        isActive: true
+      },
+      data: {
+        username: newUsername
+      }
+    });
+
+    logger.info('用户名修改成功', {
+      oldUsername: currentUsername,
+      newUsername: newUsername
+    });
+
+    return {
+      success: true,
+      message: '用户名修改成功'
+    };
+  } catch (error) {
+    logger.error('修改用户名失败:', error);
+    return {
+      success: false,
+      message: '修改用户名时发生错误'
+    };
+  }
 } 

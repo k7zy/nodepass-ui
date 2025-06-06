@@ -1,84 +1,61 @@
--- CreateEnum
-CREATE TYPE "EndpointStatus" AS ENUM ('ONLINE', 'OFFLINE', 'FAIL');
-
--- CreateEnum
-CREATE TYPE "SSEEventType" AS ENUM ('INITIAL', 'CREATE', 'UPDATE', 'DELETE', 'SHUTDOWN', 'LOG');
-
--- CreateEnum
-CREATE TYPE "TunnelStatus" AS ENUM ('running', 'stopped', 'error');
-
--- CreateEnum
-CREATE TYPE "TunnelMode" AS ENUM ('server', 'client');
-
--- CreateEnum
-CREATE TYPE "TLSMode" AS ENUM ('mode0', 'mode1', 'mode2');
-
--- CreateEnum
-CREATE TYPE "LogLevel" AS ENUM ('debug', 'info', 'warn', 'error', 'fatal');
-
 -- CreateTable
 CREATE TABLE "Endpoint" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
     "url" TEXT NOT NULL,
     "apiPath" TEXT NOT NULL,
     "apiKey" TEXT NOT NULL,
-    "status" "EndpointStatus" NOT NULL DEFAULT 'OFFLINE',
-    "lastCheck" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'OFFLINE',
+    "lastCheck" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
     "color" TEXT DEFAULT 'default',
-    "tunnelCount" INTEGER NOT NULL DEFAULT 0,
-
-    CONSTRAINT "Endpoint_pkey" PRIMARY KEY ("id")
+    "tunnelCount" INTEGER NOT NULL DEFAULT 0
 );
 
 -- CreateTable
 CREATE TABLE "Tunnel" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
     "endpointId" INTEGER NOT NULL,
-    "mode" "TunnelMode" NOT NULL,
-    "status" "TunnelStatus" NOT NULL DEFAULT 'stopped',
+    "mode" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'stopped',
     "tunnelAddress" TEXT NOT NULL,
     "tunnelPort" TEXT NOT NULL,
     "targetAddress" TEXT NOT NULL,
     "targetPort" TEXT NOT NULL,
-    "tlsMode" "TLSMode" NOT NULL,
+    "tlsMode" TEXT NOT NULL,
     "certPath" TEXT,
     "keyPath" TEXT,
-    "logLevel" "LogLevel" NOT NULL DEFAULT 'info',
+    "logLevel" TEXT NOT NULL DEFAULT 'info',
     "commandLine" TEXT NOT NULL,
     "instanceId" TEXT,
     "tcpRx" BIGINT DEFAULT 0,
     "tcpTx" BIGINT DEFAULT 0,
     "udpRx" BIGINT DEFAULT 0,
     "udpTx" BIGINT DEFAULT 0,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Tunnel_pkey" PRIMARY KEY ("id")
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Tunnel_endpointId_fkey" FOREIGN KEY ("endpointId") REFERENCES "Endpoint" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "TunnelOperationLog" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "tunnelId" INTEGER,
     "tunnelName" TEXT NOT NULL,
     "action" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "message" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "TunnelOperationLog_pkey" PRIMARY KEY ("id")
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
 CREATE TABLE "EndpointSSE" (
-    "id" SERIAL NOT NULL,
-    "eventType" "SSEEventType" NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "eventType" TEXT NOT NULL,
     "pushType" TEXT NOT NULL,
-    "eventTime" TIMESTAMP(3) NOT NULL,
+    "eventTime" DATETIME NOT NULL,
     "endpointId" INTEGER NOT NULL,
     "instanceId" TEXT NOT NULL,
     "instanceType" TEXT,
@@ -89,9 +66,28 @@ CREATE TABLE "EndpointSSE" (
     "udpRx" BIGINT DEFAULT 0,
     "udpTx" BIGINT DEFAULT 0,
     "logs" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "EndpointSSE_endpointId_fkey" FOREIGN KEY ("endpointId") REFERENCES "Endpoint" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
 
-    CONSTRAINT "EndpointSSE_pkey" PRIMARY KEY ("id")
+-- CreateTable
+CREATE TABLE "SystemConfig" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "description" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "UserSession" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "sessionId" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" DATETIME NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true
 );
 
 -- CreateIndex
@@ -139,8 +135,20 @@ CREATE INDEX "EndpointSSE_eventType_idx" ON "EndpointSSE"("eventType");
 -- CreateIndex
 CREATE INDEX "EndpointSSE_pushType_idx" ON "EndpointSSE"("pushType");
 
--- AddForeignKey
-ALTER TABLE "Tunnel" ADD CONSTRAINT "Tunnel_endpointId_fkey" FOREIGN KEY ("endpointId") REFERENCES "Endpoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateIndex
+CREATE UNIQUE INDEX "SystemConfig_key_key" ON "SystemConfig"("key");
 
--- AddForeignKey
-ALTER TABLE "EndpointSSE" ADD CONSTRAINT "EndpointSSE_endpointId_fkey" FOREIGN KEY ("endpointId") REFERENCES "Endpoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "SystemConfig_key_idx" ON "SystemConfig"("key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserSession_sessionId_key" ON "UserSession"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "UserSession_sessionId_idx" ON "UserSession"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "UserSession_username_idx" ON "UserSession"("username");
+
+-- CreateIndex
+CREATE INDEX "UserSession_expiresAt_idx" ON "UserSession"("expiresAt");

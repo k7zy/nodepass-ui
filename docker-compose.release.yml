@@ -1,51 +1,20 @@
 version: '3.8'
 
 services:
-  # PostgreSQL 数据库
-  postgres:
-    image: postgres:15-alpine
-    container_name: nodepass-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nodepass}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nodepass123}
-      POSTGRES_DB: ${POSTGRES_DB:-nodepass}
-    volumes:
-      # - postgres_data:/var/lib/postgresql/data
-      - ./postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nodepass} -d ${POSTGRES_DB:-nodepass}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
-  # NodePass 应用 - 使用GitHub发布的镜像 (整合SSE服务)
+  # NodePass 应用 - 使用GitHub发布的镜像
   app:
     image: ghcr.io/mecozea/nodepass-webui:latest
     container_name: nodepass-app
     environment:
-      # 数据库配置
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-nodepass}:${POSTGRES_PASSWORD:-nodepass123}@postgres:5432/${POSTGRES_DB:-nodepass}
-      # 应用配置
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
-      - NODE_ENV=${NODE_ENV:-production}
-      # 网络配置 (SSE服务已整合到同一端口)
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3000}
-      # PostgreSQL 连接参数
-      - POSTGRES_USER=${POSTGRES_USER:-nodepass}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nodepass123}
-      - POSTGRES_DB=${POSTGRES_DB:-nodepass}
+      # 应用配置(修改这里)
+      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
     ports:
-      - "3000:3000"  # 整合的Next.js应用 (包含SSE服务)
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - "3000:3000"  # 整合的Next.js应用
     volumes:
       # 挂载配置和日志
       - ./config:/app/config:ro
+      # SQLite 数据库文件
+      - ./public:/app/public
       # 日志和数据目录,如需挂载，请先赋予文件夹权限```chmod 777 logs```，否则可能会导致容器启动失败
       # - ./logs:/app/logs
       # - ./data:/app/data
@@ -57,19 +26,11 @@ services:
       retries: 5
       start_period: 60s
 
-# volumes:
-#   postgres_data:
-#     driver: local
-
 # 🚀 使用说明:
 # 1. 创建 .env 文件并设置环境变量
 # 2. 运行: docker-compose -f docker-compose.release.yml up -d
 # 3. 访问: http://localhost:3000
 #
 # 📝 环境变量示例:
-# POSTGRES_USER=nodepass
-# POSTGRES_PASSWORD=your_secure_password
-# POSTGRES_DB=nodepass
 # JWT_SECRET=your_super_secret_jwt_key
-# NODE_ENV=production
 # NEXT_PUBLIC_API_BASE_URL=http://your-domain.com:3000  # 云端部署时修改为实际域名 

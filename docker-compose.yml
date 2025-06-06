@@ -1,67 +1,24 @@
 services:
-  # PostgreSQL 数据库
-  postgres:
-    image: postgres:15-alpine
-    container_name: nodepass-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nodepass}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nodepass123}
-      POSTGRES_DB: ${POSTGRES_DB:-nodepass}
-      # 性能优化
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./config/postgres:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nodepass} -d ${POSTGRES_DB:-nodepass}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    # 资源限制
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
-
   # NodePass 应用 - 整合SSE服务的单一容器
-  app:
+  webui:
     build:
       context: .
       dockerfile: Dockerfile
       target: production
-    container_name: nodepass-app
+    container_name: nodepass-webui
     environment:
-      # 数据库配置
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-nodepass}:${POSTGRES_PASSWORD:-nodepass123}@postgres:5432/${POSTGRES_DB:-nodepass}
       # 应用配置
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
-      - NODE_ENV=${NODE_ENV:-production}
-      # 网络配置 (SSE服务已整合到同一端口)
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3000}
-      # PostgreSQL 连接参数
-      - POSTGRES_USER=${POSTGRES_USER:-nodepass}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nodepass123}
-      - POSTGRES_DB=${POSTGRES_DB:-nodepass}
     ports:
       - "3000:3000"  # 整合的Next.js应用 (包含SSE服务)
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       # 挂载配置和日志
       - ./config:/app/config:ro
+      # SQLite 数据库文件
+      - ./public:/app/public
       # 日志和数据目录,如需挂载，请先赋予文件夹权限```chmod 777 logs```，否则可能会导致容器启动失败
       #- ./logs:/app/logs
       #- ./data:/app/data
-      # 开发时挂载源代码（可选，用于热重载）
-      # - .:/app:delegated
-      # - /app/node_modules
     restart: unless-stopped
     # 移除开发环境特有的配置
     deploy:

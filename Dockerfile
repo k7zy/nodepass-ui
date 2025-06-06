@@ -25,6 +25,10 @@ FROM node:18-alpine AS builder
 # 设置pnpm（复用deps阶段的环境更好，但这里保持独立性）
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# 设置生产环境变量
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
 WORKDIR /app
 
 # 复制deps阶段的所有内容（包括node_modules和配置文件）
@@ -42,13 +46,14 @@ ARG VERSION
 LABEL version=${VERSION}
 LABEL org.opencontainers.image.version=${VERSION}
 
+# 设置生产环境变量
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
 # 设置pnpm（使用corepack而不是npm）
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
-
-# 合并所有生产环境的设置
-RUN apk add --no-cache postgresql-client
 
 # 复制package文件
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
@@ -70,11 +75,6 @@ COPY --from=builder /app/types ./types
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/next.config.js ./next.config.js
 
-# 生成Prisma客户端并设置权限
-#USER nextjs
-#RUN pnpm exec prisma generate && \
-#    chown -R nextjs:nodejs /app
-
 # 生成Prisma客户端
 RUN pnpm exec prisma generate
 
@@ -89,10 +89,6 @@ ENV APP_VERSION=${VERSION}
 CMD ["sh", "-c", "\
     echo '🚀 启动NodePass生产环境 (整合SSE服务)...' && \
     echo '📦 当前版本: '${APP_VERSION} && \
-    echo '⏳ 等待数据库连接...' && \
-    while ! pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-nodepass} -q; do \
-        echo '⏳ 等待PostgreSQL启动...' && sleep 2; \
-    done && \
     echo '📊 运行数据库迁移...' && \
     pnpm exec prisma migrate deploy && \
     echo '🎯 启动整合生产服务...' && \

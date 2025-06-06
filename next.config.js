@@ -8,6 +8,17 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // 禁用开发工具
+  devIndicators: {
+    buildActivity: false,
+    buildActivityPosition: 'bottom-left',
+  },
+  // 禁用所有调试功能
+  reactStrictMode: true,
+  productionBrowserSourceMaps: false,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
 };
 
 module.exports = nextConfig;

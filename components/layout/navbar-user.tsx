@@ -26,12 +26,14 @@ import { addToast } from "@heroui/toast";
  */
 export const NavbarUser = () => {
   const { user, logout } = useAuth();
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const { isOpen: isPasswordOpen, onOpen: onPasswordOpen, onOpenChange: onPasswordOpenChange } = useDisclosure();
+  const { isOpen: isUsernameOpen, onOpen: onUsernameOpen, onOpenChange: onUsernameOpenChange } = useDisclosure();
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: ""
   });
+  const [newUsername, setNewUsername] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogout = async () => {
@@ -96,7 +98,7 @@ export const NavbarUser = () => {
           newPassword: "",
           confirmPassword: ""
         });
-        onOpenChange();
+        onPasswordOpenChange();
       } else {
         addToast({
           title: "密码修改失败",
@@ -121,6 +123,72 @@ export const NavbarUser = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleUsernameChange = async () => {
+    // 验证表单
+    if (!newUsername) {
+      addToast({
+        title: "表单验证失败",
+        description: "请填写新用户名",
+        color: "danger",
+      });
+      return;
+    }
+
+    if (newUsername === user?.username) {
+      addToast({
+        title: "用户名相同",
+        description: "新用户名不能与当前用户名相同",
+        color: "danger",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      const response = await fetch('/api/auth/change-username', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newUsername
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        addToast({
+          title: "用户名修改成功",
+          description: "您的用户名已成功更新",
+          color: "success",
+        });
+        
+        // 重置表单并关闭模态框
+        setNewUsername("");
+        onUsernameOpenChange();
+        // 刷新用户信息
+        window.location.reload();
+      } else {
+        addToast({
+          title: "用户名修改失败",
+          description: result.message || "修改用户名时发生错误",
+          color: "danger",
+        });
+      }
+    } catch (error) {
+      console.error('修改用户名失败:', error);
+      addToast({
+        title: "网络错误",
+        description: "请检查网络连接后重试",
+        color: "danger",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!user) {
@@ -149,7 +217,9 @@ export const NavbarUser = () => {
             if (key === 'logout') {
               handleLogout();
             } else if (key === 'change-password') {
-              onOpen();
+              onPasswordOpen();
+            } else if (key === 'change-username') {
+              onUsernameOpen();
             }
           }}
         >
@@ -157,6 +227,14 @@ export const NavbarUser = () => {
           <DropdownItem key="profile" className="h-14 gap-2">
             <p className="font-semibold">已登录为</p>
             <p className="font-semibold">{user.username}</p>
+          </DropdownItem>
+          
+          {/* 修改用户名 */}
+          <DropdownItem 
+            key="change-username"
+            startContent={<Icon icon="solar:user-id-linear" width={18} />}
+          >
+            修改用户名
           </DropdownItem>
           
           {/* 修改密码 */}
@@ -189,8 +267,8 @@ export const NavbarUser = () => {
 
       {/* 修改密码模态框 */}
       <Modal 
-        isOpen={isOpen} 
-        onOpenChange={onOpenChange}
+        isOpen={isPasswordOpen} 
+        onOpenChange={onPasswordOpenChange}
         placement="center"
         backdrop="blur"
         classNames={{
@@ -256,6 +334,65 @@ export const NavbarUser = () => {
                 <Button 
                   color="primary" 
                   onPress={handlePasswordChange}
+                  isLoading={isSubmitting}
+                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                >
+                  {isSubmitting ? "修改中..." : "确认修改"}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 修改用户名模态框 */}
+      <Modal 
+        isOpen={isUsernameOpen} 
+        onOpenChange={onUsernameOpenChange}
+        placement="center"
+        backdrop="blur"
+        classNames={{
+          backdrop: "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20"
+        }}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Icon icon="solar:user-id-bold" className="text-primary" width={24} />
+                  修改用户名
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <div className="flex flex-col gap-4">
+                  <Input
+                    label="新用户名"
+                    placeholder="请输入新用户名"
+                    variant="bordered"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    startContent={<Icon icon="solar:user-linear" width={18} />}
+                  />
+                  
+                  <div className="text-small text-default-500">
+                    <p>• 用户名将用于系统显示和登录</p>
+                    <p>• 修改后需要重新登录</p>
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="danger" 
+                  variant="light" 
+                  onPress={onClose}
+                  isDisabled={isSubmitting}
+                >
+                  取消
+                </Button>
+                <Button 
+                  color="primary" 
+                  onPress={handleUsernameChange}
                   isLoading={isSubmitting}
                   startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
                 >
