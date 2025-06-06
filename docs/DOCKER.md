@@ -45,7 +45,7 @@ NodePass WebUI 采用**整合架构**设计：
 
 ```bash
 # 1. 下载 Docker Compose 文件并重命名
-wget https://raw.githubusercontent.com/Mecozea/NodePassDash/main/docker-compose.release.yml -O docker-compose.yml
+wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.release.yml -O docker-compose.yml
 
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
@@ -62,7 +62,7 @@ docker-compose up -d  # 如果使用独立安装的 docker-compose
 
 ```bash
 # 1. 拉取镜像
-docker pull ghcr.io/mecozea/nodepassdash:latest
+docker pull ghcr.io/nodepassproject/nodepassdash:latest
 
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
@@ -74,7 +74,7 @@ docker run -d \
   -v ./logs:/app/logs \
   -v ./public:/app/public \
   -e JWT_SECRET=your_super_secret_jwt_key \
-  ghcr.io/mecozea/nodepassdash:latest
+  ghcr.io/nodepassproject/nodepassdash:latest
 ```
 
 ### 环境变量说明

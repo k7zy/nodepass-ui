@@ -87,7 +87,7 @@
 docker-compose down
 
 # 拉取新版本
-docker pull ghcr.io/mecozea/nodepass-webui:latest
+docker pull ghcr.io/NodePassProject/NodePassDash:latest
 
 # 使用新的配置启动
 docker-compose -f docker-compose.release.yml up -d

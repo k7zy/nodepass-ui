@@ -1,6 +1,6 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)
 
 一个现代化的 NodePass 管理界面，基于 Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
@@ -83,7 +83,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/Mecozea/NodePassDash.git
+git clone https://github.com/NodePassProject/NodePassDash.git
 cd nodepass-webui
 
 # 2. 安装依赖
@@ -161,9 +161,9 @@ pnpm exec prisma studio
 
 ## 📞 支持
 
-- 🐛 问题报告: [GitHub Issues](https://github.com/mecozea/NodePassDash/issues)
-- 📖 文档: [项目 Wiki](https://github.com/mecozea/NodePassDash/wiki)
-- 💬 社区讨论: [GitHub Discussions](https://github.com/mecozea/NodePassDash/discussions)
+- 🐛 问题报告: [GitHub Issues](https://github.com/NodePassProject/NodePassDash/issues)
+- 📖 文档: [项目 Wiki](https://github.com/NodePassProject/NodePassDash/wiki)
+- 💬 社区讨论: [GitHub Discussions](https://github.com/NodePassProject/NodePassDash/discussions)
 - 🐳 Docker 部署: [Docker 指南](docs/DOCKER.md)
 
 ---
