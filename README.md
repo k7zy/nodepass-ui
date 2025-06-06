@@ -81,7 +81,7 @@
 
 - Node.js 18+
 - pnpm
-- PostgreSQL 数据库
+- SQLite 数据库
 
 #### 安装步骤
 
@@ -102,7 +102,7 @@ pnpm db:generate
 pnpm db:migrate
 
 # 5. 启动开发服务
-pnpm dev:all
+pnpm dev
 ```
 
 访问：
@@ -124,7 +124,7 @@ nodepass-webui/
 
 ### 数据库配置
 
-项目使用 PostgreSQL 作为主数据库，通过 Prisma ORM 进行管理：
+项目使用 SQLite 作为主数据库，通过 Prisma ORM 进行管理：
 
 ```bash
 # 创建新迁移
