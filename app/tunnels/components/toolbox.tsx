@@ -45,6 +45,7 @@ interface TunnelToolBoxProps {
   onClear: () => void;
   onStatusFilterChange: (status: string) => void;
   onEndpointFilterChange?: (endpointId: string) => void;
+  onRefresh?: () => void;
 }
 
 export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
@@ -56,6 +57,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   onClear,
   onStatusFilterChange,
   onEndpointFilterChange,
+  onRefresh,
 }) => {
   const router = useRouter();
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -229,6 +231,18 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <span className="hidden sm:inline">创建实例</span>
             <span className="sm:hidden">创建</span>
           </Button>
+          
+          {/* 刷新按钮 */}
+          <Button
+            variant="flat"
+            size="sm"
+            isIconOnly
+            onClick={onRefresh}
+            isDisabled={loading}
+          >
+            <FontAwesomeIcon icon={faRotateRight} className="text-default-600" />
+          </Button>
+
           <Dropdown>
             <DropdownTrigger>
               <Button 

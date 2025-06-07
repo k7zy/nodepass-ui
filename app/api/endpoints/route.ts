@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { logTunnelOperation } from '@/lib/operation-log';
 import { sseService } from '@/lib/server/sse-service';
+import { EndpointStatus } from '@prisma/client';
 
 // 端点数据验证 schema
 const endpointSchema = z.object({
@@ -11,6 +12,23 @@ const endpointSchema = z.object({
   apiPath: z.string().min(1, 'API前缀不能为空'),
   apiKey: z.string().min(1, 'API Key不能为空').max(200, 'API Key不能超过200个字符'),
   color: z.string().optional(),
+});
+
+// 验证更新请求体的schema
+const updateEndpointSchema = z.object({
+  id: z.number(),
+  action: z.literal('update'),
+  name: z.string().min(1, '端点名称不能为空').max(50, '端点名称不能超过50个字符'),
+  url: z.string().url('请输入有效的URL地址'),
+  apiPath: z.string().min(1, 'API前缀不能为空'),
+  apiKey: z.string().min(1, 'API Key不能为空').max(200, 'API Key不能超过200个字符'),
+});
+
+// 重命名端点的验证schema
+const renameEndpointSchema = z.object({
+  id: z.number(),
+  name: z.string().min(1, "名称不能为空"),
+  action: z.literal("rename")
 });
 
 type EndpointWithTunnels = {
@@ -231,74 +249,141 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// PATCH - 重连或断开端点
+// PATCH /api/endpoints - 更新端点状态或配置
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, action } = body;
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: '端点ID不能为空' },
-        { status: 400 }
-      );
-    }
 
-    if (!['reconnect', 'disconnect'].includes(action)) {
-      return NextResponse.json(
-        { error: '不支持的操作，仅支持 reconnect 或 disconnect' },
-        { status: 400 }
-      );
-    }
-    
-    const requestId= Number(id) 
-    // 查找端点
-    const endpoint = await prisma.endpoint.findUnique({
-      where: { id:requestId }
-    });
-
-    if (!endpoint) {
-      return NextResponse.json(
-        { error: '端点不存在' },
-        { status: 404 }
-      );
-    }
-
-    try {
-      if (action === 'reconnect') {
-        // 手动重连端点
-        await sseService.resetAndReconnectEndpoint(requestId);
-        console.log(`端点 ${endpoint.name} 重连成功`);
-
-        return NextResponse.json({ 
-          success: true, 
-          message: '端点重连成功' 
-        });
+    // 根据action选择不同的处理逻辑
+    switch (body.action) {
+      case "rename": {
+        const { id, name } = renameEndpointSchema.parse(body);
         
-      } else if (action === 'disconnect') {
-        // 手动断开端点连接
-        await sseService.manualDisconnectEndpoint(requestId);
-        console.log(`端点 ${endpoint.name} 已手动断开连接`);
-        
-        return NextResponse.json({ 
-          success: true, 
-          message: '端点连接已断开' 
+        // 检查新名称是否已存在
+        const existingEndpoint = await prisma.endpoint.findFirst({
+          where: {
+            name,
+            id: {
+              not: id
+            }
+          }
         });
+
+        if (existingEndpoint) {
+          return NextResponse.json(
+            { error: "该名称已被使用" },
+            { status: 400 }
+          );
+        }
+
+        // 更新端点名称
+        await prisma.endpoint.update({
+          where: { id },
+          data: { name }
+        });
+
+        return NextResponse.json({ message: "主控名称已更新" });
       }
-      
-    } catch (error) {
-      console.error(`端点 ${endpoint.name} ${action === 'reconnect' ? '重连' : '断开'} 失败:`, error);
 
+      case "reconnect": {
+        const { id } = body;
+        
+        if (!id) {
+          return NextResponse.json(
+            { error: '端点ID不能为空' },
+            { status: 400 }
+          );
+        }
+
+        // 查找端点
+        const endpoint = await prisma.endpoint.findUnique({
+          where: { id }
+        });
+
+        if (!endpoint) {
+          return NextResponse.json(
+            { error: '端点不存在' },
+            { status: 404 }
+          );
+        }
+
+        try {
+          // 手动重连端点
+          await sseService.resetAndReconnectEndpoint(id);
+          console.log(`端点 ${endpoint.name} 重连成功`);
+
+          return NextResponse.json({ 
+            success: true, 
+            message: '端点重连成功' 
+          });
+        } catch (error) {
+          console.error(`端点 ${endpoint.name} 重连失败:`, error);
+
+          return NextResponse.json(
+            { error: '端点重连失败' }, 
+            { status: 500 }
+          );
+        }
+      }
+
+      case "disconnect": {
+        const { id } = body;
+        
+        if (!id) {
+          return NextResponse.json(
+            { error: '端点ID不能为空' },
+            { status: 400 }
+          );
+        }
+
+        // 查找端点
+        const endpoint = await prisma.endpoint.findUnique({
+          where: { id }
+        });
+
+        if (!endpoint) {
+          return NextResponse.json(
+            { error: '端点不存在' },
+            { status: 404 }
+          );
+        }
+
+        try {
+          // 手动断开端点连接
+          await sseService.manualDisconnectEndpoint(id);
+          console.log(`端点 ${endpoint.name} 已手动断开连接`);
+          
+          return NextResponse.json({ 
+            success: true, 
+            message: '端点连接已断开' 
+          });
+        } catch (error) {
+          console.error(`端点 ${endpoint.name} 断开连接失败:`, error);
+
+          return NextResponse.json(
+            { error: '端点断开连接失败' }, 
+            { status: 500 }
+          );
+        }
+      }
+
+      default:
+        return NextResponse.json(
+          { error: "不支持的操作类型" },
+          { status: 400 }
+        );
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: `端点${action === 'reconnect' ? '重连' : '断开'}失败` }, 
-        { status: 500 }
+        { error: "数据验证失败", details: error.errors },
+        { status: 400 }
       );
     }
-    
-  } catch (error) {
-    console.error('处理端点操作请求失败:', error);
+
+    console.error("端点更新失败:", error);
     return NextResponse.json(
-      { error: '处理端点操作请求失败' }, 
+      { error: "端点更新失败" },
       { status: 500 }
     );
   }

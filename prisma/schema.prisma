@@ -42,6 +42,7 @@ enum TunnelMode {
 
 // TLS 模式枚举
 enum TLSMode {
+  inherit
   mode0
   mode1
   mode2
@@ -49,6 +50,7 @@ enum TLSMode {
 
 // 日志级别枚举
 enum LogLevel {
+  inherit
   debug
   info
   warn

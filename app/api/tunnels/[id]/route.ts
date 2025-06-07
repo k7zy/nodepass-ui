@@ -4,23 +4,99 @@ import { logTunnelOperation } from '@/lib/operation-log';
 import { convertBigIntToNumber } from "@/lib/utils";
 import { fetchWithSSLSupport } from '@/lib/utils/fetch';
 import { logger } from '@/lib/server/logger';
+import { z } from 'zod';
 
-// PATCH /api/tunnels/[instanceId] - 更新隧道状态（启动/停止/重启）
+// 验证请求体的schema
+const updateTunnelSchema = z.object({
+  action: z.enum(['start', 'stop', 'restart', 'rename']),
+  name: z.string().min(1, "名称不能为空").max(50, "名称不能超过50个字符").optional(),
+});
+
+// PATCH /api/tunnels/[instanceId] - 更新隧道状态（启动/停止/重启）或名称
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ instanceId: string,endpointId:string }> }
+  { params }: { params: Promise<{ instanceId?: string, endpointId?: string, id?: string }> }
 ) {
   try {
-    const { instanceId,endpointId } = await params;
     const body = await request.json();
-    const { action } = body; // 'start', 'stop', 'restart'
+    const { action, name } = updateTunnelSchema.parse(body);
+
+    // 如果是重命名操作
+    if (action === 'rename') {
+      if (!name) {
+        return NextResponse.json(
+          { error: "重命名操作需要提供新名称" },
+          { status: 400 }
+        );
+      }
+
+      const { id } = await params;
+      if (!id) {
+        return NextResponse.json(
+          { error: "缺少隧道ID" },
+          { status: 400 }
+        );
+      }
+
+      const tunnelId = parseInt(id);
+      if (isNaN(tunnelId)) {
+        return NextResponse.json(
+          { error: "无效的隧道ID" },
+          { status: 400 }
+        );
+      }
+
+      // 检查隧道是否存在
+      const existingTunnel = await prisma.tunnel.findUnique({
+        where: { id: tunnelId }
+      });
+
+      if (!existingTunnel) {
+        return NextResponse.json(
+          { error: "隧道不存在" },
+          { status: 404 }
+        );
+      }
+
+      // 更新隧道名称
+      const updatedTunnel = await prisma.tunnel.update({
+        where: { id: tunnelId },
+        data: { name }
+      });
+
+      // 记录操作日志
+      await logTunnelOperation({
+        tunnelId: tunnelId,
+        tunnelName: name,
+        action: 'RENAMED',
+        status: 'SUCCESS',
+        message: `隧道名称已更新为: ${name}`
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: convertBigIntToNumber(updatedTunnel),
+        message: "隧道名称更新成功"
+      });
+    }
+
+    // 如果是状态更新操作
+    const { instanceId, endpointId } = await params;
+    if (!instanceId || !endpointId) {
+      return NextResponse.json(
+        { error: "缺少必要的参数" },
+        { status: 400 }
+      );
+    }
 
     // 查找隧道实例
     const tunnel = await prisma.tunnel.findUnique({
-      where: { endpointId_instanceId: {
-        endpointId: Number(endpointId),
-        instanceId: instanceId
-      } }
+      where: {
+        endpointId_instanceId: {
+          endpointId: Number(endpointId),
+          instanceId: instanceId
+        }
+      }
     });
 
     if (!tunnel) {
@@ -59,10 +135,12 @@ export async function PATCH(
 
     // 更新隧道状态
     const updatedTunnel = await prisma.tunnel.update({
-      where: { endpointId_instanceId: {
-        endpointId: Number(endpointId),
-        instanceId: instanceId
-      } },
+      where: {
+        endpointId_instanceId: {
+          endpointId: Number(endpointId),
+          instanceId: instanceId
+        }
+      },
       data: { status: newStatus }
     });
 
@@ -81,33 +159,17 @@ export async function PATCH(
       message: logMessage
     });
   } catch (error) {
-    console.error('更新隧道状态失败:', error);
+    console.error('更新隧道失败:', error);
     
-    // 记录错误日志
-    try {
-      const { instanceId, endpointId } = await params;
-      const tunnel = await prisma.tunnel.findUnique({
-        where: { endpointId_instanceId: {
-          endpointId: Number(endpointId),
-          instanceId: instanceId
-        } }
-      });
-      
-      if (tunnel) {
-        await logTunnelOperation({
-          tunnelId: tunnel.id,
-          tunnelName: tunnel.name,
-          action: 'ERROR',
-          status: 'ERROR',
-          message: `操作失败: ${error instanceof Error ? error.message : '未知错误'}`
-        });
-      }
-    } catch (logError) {
-      console.error('记录错误日志失败:', logError);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "数据验证失败", details: error.errors },
+        { status: 400 }
+      );
     }
-    
+
     return NextResponse.json(
-      { error: '更新隧道状态失败' },
+      { error: '更新隧道失败' },
       { status: 500 }
     );
   }

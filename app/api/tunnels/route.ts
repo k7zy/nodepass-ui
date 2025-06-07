@@ -120,15 +120,31 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建命令行
-    let commandLine = `${mode}://${tunnelAddress}:${tunnelPort}/${targetAddress}:${targetPort}?log=${logLevel}`;
+    let commandLine = `${mode}://${tunnelAddress}:${tunnelPort}/${targetAddress}:${targetPort}`;
+    
+    // 添加查询参数
+    const queryParams = [];
+    
+    // 只有当日志级别不是 inherit 时才添加
+    if (logLevel !== 'inherit') {
+      queryParams.push(`log=${logLevel}`);
+    }
     
     if (mode === 'server') {
-      const tlsModeNum = tlsMode === 'mode0' ? '0' : tlsMode === 'mode1' ? '1' : '2';
-      commandLine += `&tls=${tlsModeNum}`;
-      
-      if (tlsMode === 'mode2' && certPath && keyPath) {
-        commandLine += `&crt=${certPath}&key=${keyPath}`;
+      // 只有当 TLS 模式不是 inherit 时才添加
+      if (tlsMode !== 'inherit') {
+        const tlsModeNum = tlsMode === 'mode0' ? '0' : tlsMode === 'mode1' ? '1' : '2';
+        queryParams.push(`tls=${tlsModeNum}`);
+        
+        if (tlsMode === 'mode2' && certPath && keyPath) {
+          queryParams.push(`crt=${certPath}`, `key=${keyPath}`);
+        }
       }
+    }
+    
+    // 如果有查询参数，则添加到命令行
+    if (queryParams.length > 0) {
+      commandLine += `?${queryParams.join('&')}`;
     }
 
     // 调用NodePass API创建隧道实例

@@ -87,6 +87,7 @@ interface TunnelInfo {
     targetPort: number;
     tls: boolean;
     logLevel: string;
+    tlsMode?: string;  // 添加 tlsMode 字段
   };
   traffic: {
     tcpRx: number;
@@ -968,17 +969,42 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                       label="目标端口" 
                       value={<span className="font-mono text-sm">{tunnelInfo.config.targetPort}</span>} 
                     />
-                    <CellValue 
-                      label="TLS" 
-                      value={<Chip size="sm" color={tunnelInfo.config.tls ? "success" : "default"}>
-                        {tunnelInfo.config.tls ? "启用" : "禁用"}
-                      </Chip>} 
-                    />
+                      
+                      <CellValue 
+                        label="TLS 设置" 
+                        value={
+                          <div className="flex items-center gap-2">
+                            {tunnelInfo.type === '客户端' ? (
+                              <span className="text-default-500">-</span>
+                            ) : (
+                              <Chip 
+                                variant="flat" 
+                                color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
+                                      tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
+                                size="sm"
+                              >
+                                {tunnelInfo.config.tlsMode === 'inherit' ? '继承主控设置' :
+                                 tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
+                                 tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
+                              </Chip>
+                            )}
+                          </div>
+                        }
+                      />
+                  
                     <CellValue 
                       label="日志级别" 
-                      value={<Chip size="sm" variant="flat" color="primary">
-                        {tunnelInfo.config.logLevel}
-                      </Chip>} 
+                      value={
+                        <div className="flex items-center gap-2">
+                          <Chip 
+                            variant="flat" 
+                            color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
+                            size="sm"
+                          >
+                            {tunnelInfo.config.logLevel === 'inherit' ? '继承主控设置' : tunnelInfo.config.logLevel.toUpperCase()}
+                          </Chip>
+                        </div>
+                      } 
                     />
                   </div>
                 </div>

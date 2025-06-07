@@ -104,10 +104,10 @@ export default function CreateTunnelPage() {
     tunnelPort: "",
     targetAddress: "",
     targetPort: "",
-    tlsMode: "mode0",
+    tlsMode: "inherit",
     certPath: "",
     keyPath: "",
-    logLevel: "info"
+    logLevel: "inherit"
   });
 
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -396,13 +396,17 @@ export default function CreateTunnelPage() {
                   return <div>{items[0]?.textValue}</div>;
                 }}
               >
+                <SelectItem key="inherit" textValue="Inherit">
+                  Inherit
+                  <div className="text-tiny text-default-400">使用主控配置的日志级别</div>
+                </SelectItem>
                 <SelectItem key="debug" textValue="Debug">
                   Debug
                   <div className="text-tiny text-default-400">详细调试信息</div>
                 </SelectItem>
                 <SelectItem key="info" textValue="Info">
                   Info
-                  <div className="text-tiny text-default-400">一般操作信息(默认)</div>
+                  <div className="text-tiny text-default-400">一般操作信息</div>
                 </SelectItem>
                 <SelectItem key="warn" textValue="Warn">
                   Warn
@@ -499,6 +503,7 @@ export default function CreateTunnelPage() {
               value={formData.tlsMode}
               onValueChange={(value: string) => handleInputChange("tlsMode", value)}
             >
+              <Radio value="inherit">继承主控: 使用主控配置的 TLS 设置</Radio>
               <Radio value="mode0">模式 0: 无 TLS 加密（明文 TCP/UDP）</Radio>
               <Radio value="mode1">模式 1: 自签名证书（自动生成）</Radio>
               <Radio value="mode2">模式 2: 自定义证书（需要 crt 和 key 参数）</Radio>
@@ -540,9 +545,9 @@ export default function CreateTunnelPage() {
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
                 {formData.mode === "server" &&
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "inherit" ? "继承主控设置" : formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
                 }
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {formData.logLevel.toUpperCase()}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {formData.logLevel === "inherit" ? "继承主控设置" : formData.logLevel.toUpperCase()}</p>
               </div>
             </CardBody>
           </Card>
@@ -552,10 +557,16 @@ export default function CreateTunnelPage() {
               <Snippet>
                 {`${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}${
                   formData.mode === "server" 
-                    ? `?log=${formData.logLevel}&tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}${
-                        formData.tlsMode === "mode2" ? `&crt=${formData.certPath}&key=${formData.keyPath}` : ""
+                    ? `${formData.logLevel !== "inherit" || formData.tlsMode !== "inherit" ? "?" : ""}${
+                        formData.logLevel !== "inherit" ? `log=${formData.logLevel}` : ""
+                      }${
+                        formData.tlsMode !== "inherit" 
+                          ? `${formData.logLevel !== "inherit" ? "&" : ""}tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}${
+                              formData.tlsMode === "mode2" ? `&crt=${formData.certPath}&key=${formData.keyPath}` : ""
+                            }`
+                          : ""
                       }`
-                    : `?log=${formData.logLevel}`
+                    : `${formData.logLevel !== "inherit" ? "?log=" + formData.logLevel : ""}`
                 }`}
               </Snippet>
             </CardBody>

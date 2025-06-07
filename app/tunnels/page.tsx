@@ -16,7 +16,8 @@ import {
   TableColumn,
   TableHeader,
   TableRow,
-  useDisclosure
+  useDisclosure,
+  Input
 } from "@heroui/react";
 import React from "react";
 
@@ -26,7 +27,8 @@ import {
   faPause, 
   faPlay, 
   faTrash,
-  faRotateRight
+  faRotateRight,
+  faPen
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Selection } from "@react-types/shared";
@@ -34,12 +36,11 @@ import { Box, Flex } from "@/components";
 import { TunnelToolBox } from "./components/toolbox";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
-import { useGlobalSSE } from "@/lib/hooks/use-sse";
 
 // 定义实例类型
 interface Tunnel {
   id: string;
-  instanceId?: string; // NodePass API的实例ID（可选）
+  instanceId?: string;
   type: string;
   name: string;
   endpoint: string;
@@ -64,6 +65,12 @@ export default function TunnelsPage() {
   const [deleteModalTunnel, setDeleteModalTunnel] = React.useState<Tunnel | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   
+  // 添加编辑名称相关的状态
+  const [editModalTunnel, setEditModalTunnel] = React.useState<Tunnel | null>(null);
+  const [newTunnelName, setNewTunnelName] = React.useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+  const [isEditLoading, setIsEditLoading] = React.useState(false);
+
   // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
 
@@ -76,7 +83,7 @@ export default function TunnelsPage() {
   const fetchTunnels = async () => {
     try {
       setLoading(true);
-      setError(null); // 清除之前的错误
+      setError(null);
       const response = await fetch('/api/tunnels');
       if (!response.ok) throw new Error('获取实例列表失败');
       const data = await response.json();
@@ -99,26 +106,6 @@ export default function TunnelsPage() {
   React.useEffect(() => {
     fetchTunnels();
   }, []);
-
-  // 使用全局SSE监听实例更新事件
-  useGlobalSSE({
-    onMessage: (data) => {
-      // 处理实例更新事件
-      if (['create', 'update', 'delete'].includes(data.type)) {
-        console.log('[实例管理] 收到实例更新事件:', data);
-        // 刷新实例列表
-        fetchTunnels();
-      }
-    },
-    onError: (error) => {
-      console.error('[实例管理] SSE连接错误:', error);
-      addToast({
-        title: "实时更新连接失败",
-        description: "无法接收实时更新，请刷新页面重试",
-        color: "warning",
-      });
-    }
-  });
 
   const columns = [
     { key: "type", label: "类型" },
@@ -162,9 +149,7 @@ export default function TunnelsPage() {
       tunnelId: tunnel.id,
       tunnelName: tunnel.name,
       onStatusChange: (tunnelId, newStatus) => {
-        // 更新状态
         handleStatusChange(tunnelId, newStatus);
-        // 刷新列表
         fetchTunnels();
       },
     });
@@ -180,9 +165,7 @@ export default function TunnelsPage() {
       tunnelId: tunnel.id,
       tunnelName: tunnel.name,
       onStatusChange: (tunnelId, newStatus) => {
-        // 更新状态
         handleStatusChange(tunnelId, newStatus);
-        // 刷新列表
         fetchTunnels();
       },
     });
@@ -201,12 +184,62 @@ export default function TunnelsPage() {
         tunnelName: deleteModalTunnel.name,
         redirectAfterDelete: false,
         onSuccess: () => {
-          // 删除成功后刷新列表
           fetchTunnels();
         }
       });
     }
     onOpenChange();
+  };
+
+  // 添加修改名称的处理函数
+  const handleEditClick = (tunnel: Tunnel) => {
+    setEditModalTunnel(tunnel);
+    setNewTunnelName(tunnel.name);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editModalTunnel || !newTunnelName.trim()) return;
+
+    try {
+      setIsEditLoading(true);
+      const response = await fetch(`/api/tunnels/${editModalTunnel.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'rename',
+          name: newTunnelName.trim()
+        }),
+      });
+
+      if (!response.ok) throw new Error('修改名称失败');
+
+      // 更新本地状态
+      setTunnels(prev => prev.map(tunnel => 
+        tunnel.id === editModalTunnel.id 
+          ? { ...tunnel, name: newTunnelName.trim() }
+          : tunnel
+      ));
+
+      addToast({
+        title: "修改成功",
+        description: "隧道名称已更新",
+        color: "success",
+      });
+
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error('修改名称失败:', error);
+      addToast({
+        title: "修改失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setIsEditLoading(false);
+    }
   };
 
   const filteredItems = React.useMemo(() => {
@@ -237,7 +270,6 @@ export default function TunnelsPage() {
 
     if (endpointFilter !== "all") {
       filtered = filtered.filter(item => {
-        // 确保类型匹配：将两个值都转换为字符串进行比较
         return String(item.endpointId) === String(endpointFilter);
       });
     }
@@ -270,7 +302,16 @@ export default function TunnelsPage() {
         );
       case "name":
         return (
-          <Box className="text-xs md:text-sm font-semibold truncate max-w-[120px] md:max-w-none">{tunnel.name}</Box>
+          <Flex align="center" className="gap-2">
+            <Box className="text-xs md:text-sm font-semibold truncate max-w-[120px] md:max-w-none">
+              {tunnel.name}
+            </Box>
+            <FontAwesomeIcon 
+              icon={faPen} 
+              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+              onClick={() => handleEditClick(tunnel)}
+            />
+          </Flex>
         );
       case "endpoint":
         return (
@@ -356,7 +397,7 @@ export default function TunnelsPage() {
         }
         return value;
     }
-  }, [router, handleToggleStatus, handleRestart, handleDeleteClick]);
+  }, [router, handleToggleStatus, handleRestart, handleDeleteClick, handleEditClick]);
 
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
@@ -395,6 +436,7 @@ export default function TunnelsPage() {
             onClear={onClear}
             onStatusFilterChange={onStatusFilterChange}
             onEndpointFilterChange={onEndpointFilterChange}
+            onRefresh={fetchTunnels}
           />
           <Box className="w-full overflow-hidden">
             {/* 移动端：使用卡片布局 */}
@@ -453,7 +495,14 @@ export default function TunnelsPage() {
                         >
                           {tunnel.type}
                         </Chip>
-                        <span className="font-semibold text-sm truncate">{tunnel.name}</span>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="font-semibold text-sm truncate">{tunnel.name}</span>
+                          <FontAwesomeIcon 
+                            icon={faPen} 
+                            className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+                            onClick={() => handleEditClick(tunnel)}
+                          />
+                        </div>
                       </div>
                       <Chip 
                         variant="flat"
@@ -686,6 +735,49 @@ export default function TunnelsPage() {
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                 >
                   确认删除
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 编辑名称模态框 */}
+      <Modal isOpen={isEditModalOpen} onOpenChange={setIsEditModalOpen} placement="center">
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faPen} className="text-primary" />
+                  修改隧道名称
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <Input
+                  label="隧道名称"
+                  placeholder="请输入新的隧道名称"
+                  value={newTunnelName}
+                  onValueChange={setNewTunnelName}
+                  variant="bordered"
+                  isDisabled={isEditLoading}
+                />
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="default" 
+                  variant="light" 
+                  onPress={onClose}
+                  isDisabled={isEditLoading}
+                >
+                  取消
+                </Button>
+                <Button 
+                  color="primary" 
+                  onPress={handleEditSubmit}
+                  isLoading={isEditLoading}
+                >
+                  确认修改
                 </Button>
               </ModalFooter>
             </>

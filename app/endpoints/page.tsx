@@ -42,6 +42,7 @@ import {
   faLightbulb
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
+import RenameEndpointModal from "./components/rename-endpoint-modal";
 import { Endpoint, EndpointStatus } from '@prisma/client';
 import { buildApiUrl } from "@/lib/utils";
 
@@ -81,6 +82,8 @@ export default function EndpointsPage() {
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   const {isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange} = useDisclosure();
   const {isOpen: isDeleteOpen, onOpen: onDeleteOpen, onOpenChange: onDeleteOpenChange} = useDisclosure();
+  const {isOpen: isRenameOpen, onOpen: onRenameOpen, onOpenChange: onRenameOpenChange} = useDisclosure();
+  const [selectedEndpoint, setSelectedEndpoint] = useState<FormattedEndpoint | null>(null);
 
   // 获取主控列表
   const fetchEndpoints = async () => {
@@ -470,6 +473,49 @@ export default function EndpointsPage() {
     );
   };
 
+  const handleCardClick = (endpoint: FormattedEndpoint) => {
+    setSelectedEndpoint(endpoint);
+    onRenameOpen();
+  };
+
+  const handleRename = async (newName: string) => {
+    if (!selectedEndpoint?.id) return;
+
+    try {
+      const response = await fetch(buildApiUrl('/api/endpoints'), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: selectedEndpoint.id,
+          name: newName,
+          action: 'rename'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '重命名失败');
+      }
+
+      addToast({
+        title: "重命名成功",
+        description: `主控名称已更新为 "${newName}"`,
+        color: "success",
+      });
+
+      // 刷新主控列表
+      fetchEndpoints();
+    } catch (error) {
+      addToast({
+        title: "重命名失败",
+        description: error instanceof Error ? error.message : "请稍后重试",
+        color: "danger",
+      });
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -528,6 +574,8 @@ export default function EndpointsPage() {
               <Card 
                 key={endpoint.id} 
                 className="relative w-full h-[200px]"
+                isPressable
+                onPress={() => handleCardClick(endpoint)}
               >
                 {/* 状态按钮 */}
                 <div
@@ -619,6 +667,16 @@ export default function EndpointsPage() {
         onOpenChange={onAddOpenChange}
         onAdd={handleAddEndpoint}
       />
+
+      {/* 重命名模态框 */}
+      {selectedEndpoint && (
+        <RenameEndpointModal
+          isOpen={isRenameOpen}
+          onOpenChange={onRenameOpenChange}
+          onRename={handleRename}
+          currentName={selectedEndpoint.name}
+        />
+      )}
 
       {/* 删除确认模态框 */}
       <Modal isOpen={isDeleteOpen} onOpenChange={onDeleteOpenChange} placement="center">

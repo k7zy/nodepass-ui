@@ -7,6 +7,7 @@ export const OperationAction = {
   STARTED: 'started',
   STOPPED: 'stopped',
   RESTARTED: 'restarted',
+  RENAMED: 'renamed',
   ERROR: 'error'
 } as const;
 

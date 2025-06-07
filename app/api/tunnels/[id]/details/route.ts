@@ -154,7 +154,8 @@ export async function GET(
         listenPort: parseInt(tunnel.tunnelPort),
         targetPort: parseInt(tunnel.targetPort),
         tls: tunnel.tlsMode !== 'mode0',
-        logLevel: tunnel.logLevel
+        logLevel: tunnel.logLevel,
+        tlsMode: tunnel.tlsMode
       },
       traffic: {
         tcpRx: convertBigIntToNumber(tunnel.tcpRx),
