@@ -71,13 +71,6 @@ docker run -d \
   -v ./public:/app/public \
   ghcr.io/nodepassproject/nodepassdash:latest
 ```
-
-### 环境变量说明
-
-| 变量名 | 描述 | 默认值 | 必需 |
-|--------|------|--------|------|
-| `JWT_SECRET` | JWT密钥 | - | ✅ |
-
 ## 🔧 服务配置
 
 ### 端口映射
