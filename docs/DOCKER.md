@@ -63,7 +63,7 @@ docker pull ghcr.io/nodepassproject/nodepassdash:latest
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
 
-# 3. 修改 JWT_SECRET 并启动容器
+# 3. 启动容器
 docker run -d \
   --name nodepassdash \
   -p 3000:3000 \
