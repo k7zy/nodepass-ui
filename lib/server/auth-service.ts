@@ -26,6 +26,11 @@ setInterval(async () => {
 
 // 生成随机密码
 export function generateRandomPassword(length: number = 12): string {
+  // 如果是演示环境，返回固定密码
+  if (process.env.NEXT_PUBLIC_DEMO_STATUS === 'true') {
+    return 'np123456';
+  }
+  
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
   let password = '';
   for (let i = 0; i < length; i++) {

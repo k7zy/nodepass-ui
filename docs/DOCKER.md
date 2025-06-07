@@ -50,12 +50,8 @@ wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
 
-# 3. 修改docker-compose.yml文件的环境变量JWT_SECRET
-
-# 4. 启动服务
-docker compose up -d  # 如果使用 Docker Plugin
-# 或
-docker-compose up -d  # 如果使用独立安装的 docker-compose
+# 3. 启动服务
+docker compose up -d
 ```
 
 ### 方式二：使用 Docker 命令启动
@@ -73,7 +69,6 @@ docker run -d \
   -p 3000:3000 \
   -v ./logs:/app/logs \
   -v ./public:/app/public \
-  -e JWT_SECRET=your_super_secret_jwt_key \
   ghcr.io/nodepassproject/nodepassdash:latest
 ```
 
@@ -200,19 +195,4 @@ docker-compose pull  # 如果使用独立安装的 docker-compose
 docker compose up -d  # 如果使用 Docker Plugin
 # 或
 docker-compose up -d  # 如果使用独立安装的 docker-compose
-```
-
-### 清理
-
-```bash
-# 停止并删除容器
-docker compose down  # 如果使用 Docker Plugin
-# 或
-docker-compose down  # 如果使用独立安装的 docker-compose
-
-# 删除数据（⚠️ 注意：会删除所有数据）
-rm -rf public/sqlite.db
-
-# 清理未使用的镜像
-docker image prune -a
 ```

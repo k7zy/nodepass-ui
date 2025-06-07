@@ -3,9 +3,6 @@ services:
   nodepassdash:
     image: ghcr.io/nodepassproject/nodepassdash:latest
     container_name: nodepassdash
-    environment:
-      # 应用配置(修改这里)
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
     ports:
       - "3000:3000"  # 整合的Next.js应用
     volumes:

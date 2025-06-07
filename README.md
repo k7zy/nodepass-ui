@@ -1,6 +1,6 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)
 
 一个现代化的 NodePass 管理界面，基于 Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
@@ -109,7 +109,7 @@ pnpm dev
 ### 项目结构
 
 ```
-nodepass-webui/
+NodePassDash/
 ├── app/                    # Next.js App Router 页面
 ├── components/             # React 组件
 ├── lib/                   # 工具库和配置
