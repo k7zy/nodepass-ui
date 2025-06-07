@@ -709,7 +709,7 @@ export class SSEService {
           this.sseManager.sendTunnelUpdateByInstanceId(instanceId, eventData);
         }
         // 只有非 log 类型的事件才转发
-        if (eventData.type !== 'log') {
+        /** if (eventData.type !== 'log') {
           // console.log(`[SSE-Service] 准备转发数据到全局SSE管理器`, {
           //   instanceId,
           //   事件类型: eventData.type
@@ -723,7 +723,7 @@ export class SSEService {
             timestamp: eventTime.toISOString(),
             data: eventData
           });
-        }
+        }*/
       } else {
         console.warn(`[SSE-Service] ⚠️ 无法提取instanceId，跳过转发`, {
           endpointId,
@@ -1187,6 +1187,17 @@ export class SSEService {
           });
           
           logger.debug(`端点 ${endpointId} 更新隧道实例: ${instanceId} -> 状态: ${instance.status}${statusChanged ? ' (状态已变更)' : ''}, 流量: TCP(${instance.tcprx || 0}/${instance.tcptx || 0}) UDP(${instance.udprx || 0}/${instance.udptx || 0})${trafficChanged ? ' (流量已变更)' : ''}, 事件时间: ${eventTime.toISOString()}`);
+
+          if(statusChanged){
+            this.sseManager.sendGlobalUpdate({
+              type: eventData.type,
+              endpointId,
+              instanceId,
+              instance,
+              timestamp: eventTime.toISOString(),
+              data: eventData
+            });
+          }
         } else {
           logger.debug(`端点 ${endpointId} 隧道实例 ${instanceId} 跳过更新: ${!statusChanged && !trafficChanged ? '无变化' : '事件时间较旧'}, 当前事件时间: ${eventTime.toISOString()}`);
         }
