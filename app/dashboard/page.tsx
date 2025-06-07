@@ -42,7 +42,7 @@ interface TunnelStats {
   error: number;
 }
 
-// 隧道实例类型（用于统计）
+// 实例实例类型（用于统计）
 interface TunnelInstance {
   id: number;
   status: {
@@ -143,11 +143,11 @@ export default function DashboardPage() {
     { key: "status", label: "状态" },
   ];
 
-  // 获取隧道统计数据
+  // 获取实例统计数据
   const fetchTunnelStats = async () => {
     try {
       const response = await fetch(buildApiUrl('/api/tunnels/simple'));
-      if (!response.ok) throw new Error('获取隧道数据失败');
+      if (!response.ok) throw new Error('获取实例数据失败');
       const tunnels: TunnelInstance[] = await response.json();
       
       const newStats = {
@@ -159,7 +159,7 @@ export default function DashboardPage() {
       
       setStats(newStats);
     } catch (error) {
-      console.error('获取隧道统计数据失败:', error);
+      console.error('获取实例统计数据失败:', error);
     }
   };
 
@@ -221,10 +221,10 @@ export default function DashboardPage() {
         return;
       }
 
-      // 处理隧道更新事件
+      // 处理实例更新事件
       if (['create', 'update', 'delete'].includes(data.type)) {
-        console.log('[仪表盘] 收到隧道更新事件:', data);
-        // 刷新隧道统计数据
+        console.log('[仪表盘] 收到实例更新事件:', data);
+        // 刷新实例统计数据
         fetchTunnelStats();
         // 如果是创建或删除事件，也刷新端点数据
         if (data.type === 'create' || data.type === 'delete') {
@@ -370,7 +370,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <p className="text-default-500 text-base md:text-lg">暂无流量数据</p>
-                    <p className="text-default-400 text-xs md:text-sm mt-2">当有隧道运行时，流量趋势数据将在此显示</p>
+                    <p className="text-default-400 text-xs md:text-sm mt-2">当有实例运行时，流量趋势数据将在此显示</p>
                   </div>
                 </div>
               ) : (
@@ -474,7 +474,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="text-xs text-default-400">
-                        {endpoint.tunnelCount} 个隧道
+                        {endpoint.tunnelCount} 个实例
                       </div>
                     </div>
                   </Card>

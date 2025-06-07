@@ -379,7 +379,7 @@ export default function EndpointsPage() {
               </div>
               
               <div className="flex items-center gap-3">
-                <span className="text-small text-default-500">隧道数量:</span>
+                <span className="text-small text-default-500">实例数量:</span>
                 <Chip size="sm" variant="flat" color="primary">
                   {realTimeData.tunnelCount} 个
                 </Chip>
@@ -413,29 +413,6 @@ export default function EndpointsPage() {
               )}
             </div>
           </div>
-          <Divider className="mb-8 mt-10" />
-          <ul className="flex flex-col gap-1">
-            <li>
-              <Link className="text-default-400" href="#" size="sm">
-                如何配置 API 主控？
-              </Link>
-            </li>
-            <li>
-              <Link className="text-default-400" href="#" size="sm">
-                主控连接失败怎么办？
-              </Link>
-            </li>
-            <li>
-              <Link className="text-default-400" href="#" size="sm">
-                API Key 安全指南
-              </Link>
-            </li>
-            <li>
-              <Link className="text-default-400" href="#" size="sm">
-                联系技术支持
-              </Link>
-            </li>
-          </ul>
         </div>
       );
     }
@@ -451,7 +428,7 @@ export default function EndpointsPage() {
               } 
             />
           <p className="text-small text-default-500">
-            {realTimeData.tunnelCount ? `${realTimeData.tunnelCount} 个隧道` : "0 个隧道"}
+            {realTimeData.tunnelCount ? `${realTimeData.tunnelCount} 个实例` : "0 个实例"}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -553,20 +530,21 @@ export default function EndpointsPage() {
                 className="relative w-full h-[200px]"
               >
                 {/* 状态按钮 */}
-                <Button
+                <div
                   className="absolute right-4 top-6 z-10"
-                  color={
-                    realTimeData.status === EndpointStatus.ONLINE ? "success" : 
-                    realTimeData.status === EndpointStatus.FAIL ? "danger" : "warning"
-                  }
-                  radius="full"
-                  size="sm"
-                  variant="flat"
-                  onPress={() => toggleExpanded(endpoint.id)}
                 >
-                  {realTimeData.status === EndpointStatus.ONLINE ? "在线" : 
-                   realTimeData.status === EndpointStatus.FAIL ? "异常" : "离线"}
-                </Button>
+                  <Chip
+                    radius="full"
+                    variant="flat"
+                    color={
+                      realTimeData.status === EndpointStatus.ONLINE ? "success" : 
+                      realTimeData.status === EndpointStatus.FAIL ? "danger" : "warning"
+                    }
+                  >
+                    {realTimeData.status === EndpointStatus.ONLINE ? "在线" : 
+                     realTimeData.status === EndpointStatus.FAIL ? "异常" : "离线"}
+                  </Chip>
+                </div>
 
                 {/* 主要内容区域 */}
                 <CardBody className="relative h-[140px] bg-gradient-to-br from-content1 to-default-100/50 p-6">

@@ -100,18 +100,18 @@ export default function TunnelsPage() {
     fetchTunnels();
   }, []);
 
-  // 使用全局SSE监听隧道更新事件
+  // 使用全局SSE监听实例更新事件
   useGlobalSSE({
     onMessage: (data) => {
-      // 处理隧道更新事件
+      // 处理实例更新事件
       if (['create', 'update', 'delete'].includes(data.type)) {
-        console.log('[隧道管理] 收到隧道更新事件:', data);
-        // 刷新隧道列表
+        console.log('[实例管理] 收到实例更新事件:', data);
+        // 刷新实例列表
         fetchTunnels();
       }
     },
     onError: (error) => {
-      console.error('[隧道管理] SSE连接错误:', error);
+      console.error('[实例管理] SSE连接错误:', error);
       addToast({
         title: "实时更新连接失败",
         description: "无法接收实时更新，请刷新页面重试",
@@ -124,7 +124,7 @@ export default function TunnelsPage() {
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
     { key: "endpoint", label: "主控" },
-    { key: "tunnelAddress", label: "实例地址" },
+    { key: "tunnelAddress", label: "隧道地址" },
     { key: "targetAddress", label: "目标地址" },
     { key: "status", label: "状态" },
     { key: "actions", label: "操作" },
@@ -479,7 +479,7 @@ export default function TunnelsPage() {
                         </Chip>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-default-500 w-12 flex-shrink-0">实例:</span>
+                        <span className="text-xs text-default-500 w-12 flex-shrink-0">隧道:</span>
                         <span className="text-xs font-mono text-default-600 truncate">{tunnel.tunnelAddress}</span>
                       </div>
                       <div className="flex items-center gap-2">

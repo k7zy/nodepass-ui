@@ -323,7 +323,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">服务器模式</h3>
-                  <p className="text-small text-default-500">接受传入的实例连接，提供给目标服务</p>
+                  <p className="text-small text-default-500">隧道监听端，提供目标服务出口或入口，需双端握手</p>
                 </div>
               </CardBody>
             </Card>
@@ -343,7 +343,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">客户端模式</h3>
-                  <p className="text-small text-default-500">连接到远程实例服务器，转发本地目标</p>
+                  <p className="text-small text-default-500">隧道拨号端，提供目标服务入口或出口，可单端转发</p>
                 </div>
               </CardBody>
             </Card>
@@ -403,10 +403,7 @@ export default function CreateTunnelPage() {
             {/* 实例端配置 */}
             <Card className="shadow-none border-2 border-primary-200 bg-primary-50/30 dark:border-primary-800 dark:bg-primary-900/20">
               <CardHeader className="pb-3">
-                <h3 className="text-lg font-semibold text-primary">实例端配置</h3>
-                <p className="text-small text-default-500">
-                  {formData.mode === "server" ? "实例监听的地址和端口" : "要连接的远程实例地址和端口"}
-                </p>
+                <h3 className="text-lg font-semibold text-primary">隧道配置</h3>
               </CardHeader>
               <CardBody className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -432,10 +429,7 @@ export default function CreateTunnelPage() {
             {/* 目标端配置 */}
             <Card className="shadow-none border-2 border-secondary-200 bg-secondary-50/30 dark:border-secondary-800 dark:bg-secondary-900/20">
               <CardHeader className="pb-3">
-                <h3 className="text-lg font-semibold text-secondary">目标端配置</h3>
-                <p className="text-small text-default-500">
-                  {formData.mode === "server" ? "实例流量转发到的目标地址和端口" : "本地服务的地址和端口"}
-                </p>
+                <h3 className="text-lg font-semibold text-secondary">目标配置</h3>
               </CardHeader>
               <CardBody className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -458,50 +452,6 @@ export default function CreateTunnelPage() {
               </CardBody>
             </Card>
           </div>
-
-          {/* 移动端友好的连接示意图 */}
-          <Card className="shadow-none border-2 border-default-200 bg-default-50/50 dark:bg-default-900/50 lg:hidden">
-            <CardBody className="p-4">
-              <h4 className="font-semibold mb-3 text-center">连接流向</h4>
-              <div className="flex flex-col items-center space-y-2 text-sm">
-                {formData.mode === "server" ? (
-                  <>
-                    <div className="text-center">
-                      <div className="font-medium text-primary">客户端连接</div>
-                      <div className="text-default-500">来自任意位置</div>
-                    </div>
-                    <div className="text-xl">⬇️</div>
-                    <div className="text-center">
-                      <div className="font-medium text-primary">实例服务器</div>
-                      <div className="text-default-500">{formData.tunnelAddress}:{formData.tunnelPort}</div>
-                    </div>
-                    <div className="text-xl">⬇️</div>
-                    <div className="text-center">
-                      <div className="font-medium text-secondary">目标服务</div>
-                      <div className="text-default-500">{formData.targetAddress}:{formData.targetPort}</div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-center">
-                      <div className="font-medium text-secondary">本地服务</div>
-                      <div className="text-default-500">{formData.targetAddress}:{formData.targetPort}</div>
-                    </div>
-                    <div className="text-xl">⬆️</div>
-                    <div className="text-center">
-                      <div className="font-medium text-primary">实例客户端</div>
-                      <div className="text-default-500">本地</div>
-                    </div>
-                    <div className="text-xl">⬆️</div>
-                    <div className="text-center">
-                      <div className="font-medium text-primary">远程实例服务器</div>
-                      <div className="text-default-500">{formData.tunnelAddress}:{formData.tunnelPort}</div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </CardBody>
-          </Card>
         </CardBody>
       </Card>
 

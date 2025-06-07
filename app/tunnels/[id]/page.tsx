@@ -708,7 +708,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               <CardBody className="flex flex-col justify-between h-full gap-3 md:gap-4">
                 <CellValue label="实例ID" value={tunnelInfo.instanceId} />
                 <CellValue 
-                  label="端点" 
+                  label="主控" 
                   value={<Chip variant="bordered" color="default" size="sm">{tunnelInfo.endpoint}</Chip>} 
                 />
                 <CellValue 
@@ -730,7 +730,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   } 
                 />
                 <CellValue 
-                  label="执行命令" 
+                  label="命令" 
                   value={<span className="font-mono text-xs md:text-sm break-all">
                     {tunnelInfo.commandLine}
                   </span>} 
