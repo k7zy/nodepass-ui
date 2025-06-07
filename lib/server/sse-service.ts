@@ -1387,15 +1387,7 @@ export class SSEService {
           }
         });
   
-        // 统计运行中的隧道实例数量
-        const runningInstances = await prisma.tunnel.count({
-          where: {
-            endpointId: endpointId,
-            status: 'running'
-          }
-        });
-  
-        logger.debug(`端点 ${endpointId} 隧道统计: 总数=${totalInstances}, 运行中=${runningInstances}`);
+        logger.debug(`端点 ${endpointId} 隧道统计: 总数=${totalInstances}，数据库更新成功`);
   
         // 更新端点的实例数量（使用运行中的实例数）
         const updateResult = await prisma.endpoint.update({
@@ -1405,9 +1397,6 @@ export class SSEService {
             lastCheck: new Date()
           }
         });
-  
-        logger.info(`端点 ${endpointId} 实例统计已更新: ${runningInstances}/${totalInstances} 个运行中，数据库更新成功`);
-  
       } catch (error) {
         logger.error(`更新端点 ${endpointId} 实例统计失败:`, error);
       }

@@ -729,12 +729,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                     </span>
                   } 
                 />
-                <CellValue 
-                  label="命令" 
-                  value={<span className="font-mono text-xs md:text-sm break-all">
+                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                  <span className="text-small text-default-500 md:min-w-[60px]">命令</span>
+                  <span className="font-mono text-xs md:text-sm break-all flex-1 md:text-right">
                     {tunnelInfo.commandLine}
-                  </span>} 
-                />
+                  </span>
+                </div>
               </CardBody>
             </Card>
             

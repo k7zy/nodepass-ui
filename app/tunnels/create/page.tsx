@@ -100,9 +100,9 @@ export default function CreateTunnelPage() {
     apiEndpoint: "",
     mode: "server",
     tunnelName: "",
-    tunnelAddress: "0.0.0.0",
+    tunnelAddress: "",
     tunnelPort: "",
-    targetAddress: "0.0.0.0",
+    targetAddress: "",
     targetPort: "",
     tlsMode: "mode0",
     certPath: "",
@@ -144,6 +144,17 @@ export default function CreateTunnelPage() {
   }, []);
 
   const handleInputChange = (field: string, value: string) => {
+    // 对于端口字段添加特殊处理
+    if (field === "tunnelPort" || field === "targetPort") {
+      // 只允许数字
+      if (!/^\d*$/.test(value)) {
+        return;
+      }
+      // 限制长度为5
+      if (value.length > 5) {
+        return;
+      }
+    }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -151,6 +162,14 @@ export default function CreateTunnelPage() {
     // 验证必填字段
     if (!formData.apiEndpoint || !formData.tunnelName || !formData.tunnelPort || !formData.targetPort) {
       showToast('请填写所有必填字段', 'warning');
+      return;
+    }
+
+    // 验证端口范围
+    const tunnelPortNum = parseInt(formData.tunnelPort);
+    const targetPortNum = parseInt(formData.targetPort);
+    if (tunnelPortNum < 0 || tunnelPortNum > 65535 || targetPortNum < 0 || targetPortNum > 65535) {
+      showToast('端口号必须在0到65535之间', 'warning');
       return;
     }
 
@@ -313,7 +332,7 @@ export default function CreateTunnelPage() {
               className={`shadow-none border-2 ${formData.mode === "server" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
               onClick={() => handleInputChange("mode", "server")}
             >
-              <CardBody className="flex items-center gap-4 p-6">
+              <CardBody className="flex items-center p-6">
                 <div className="w-8 h-8 flex items-center justify-center transition-all duration-300">
                   <FontAwesomeIcon 
                     icon={faServer} 
@@ -333,7 +352,7 @@ export default function CreateTunnelPage() {
               className={`shadow-none border-2 ${formData.mode === "client" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
               onClick={() => handleInputChange("mode", "client")}
             >
-              <CardBody className="flex items-center gap-4 p-6">
+              <CardBody className="flex items-center p-6">
                 <div className="w-8 h-8 flex items-center justify-center transition-all duration-300">
                   <FontAwesomeIcon 
                     icon={faDesktop} 
@@ -365,7 +384,6 @@ export default function CreateTunnelPage() {
                 placeholder="web-server-tunnel"
                 value={formData.tunnelName}
                 onChange={(e) => handleInputChange("tunnelName", e.target.value)}
-                description="为此实例实例指定一个描述性名称"
               />
             </div>
             <div className="lg:col-span-1">
@@ -408,19 +426,26 @@ export default function CreateTunnelPage() {
               <CardBody className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="实例地址"
+                    label="隧道地址"
                     placeholder="0.0.0.0"
                     value={formData.tunnelAddress}
                     onChange={(e) => handleInputChange("tunnelAddress", e.target.value)}
-                    description={formData.mode === "server" ? "监听地址" : "远程地址"}
                   />
                   <Input
-                    label="实例端口"
+                    label="隧道端口"
                     placeholder="10101"
                     type="number"
+                    min={0}
+                    max={65535}
+                    maxLength={5}
                     value={formData.tunnelPort}
                     onChange={(e) => handleInputChange("tunnelPort", e.target.value)}
-                    description={formData.mode === "server" ? "监听端口" : "远程端口"}
+                    onKeyDown={(e) => {
+                      // 阻止输入非数字字符
+                      if (!/^\d$/.test(e.key) && !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab"].includes(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
                   />
                 </div>
               </CardBody>
@@ -438,15 +463,22 @@ export default function CreateTunnelPage() {
                     placeholder="0.0.0.0"
                     value={formData.targetAddress}
                     onChange={(e) => handleInputChange("targetAddress", e.target.value)}
-                    description={formData.mode === "server" ? "转发目标" : "本地地址"}
                   />
                   <Input
                     label="目标端口"
                     placeholder="8080"
                     type="number"
+                    min={0}
+                    max={65535}
+                    maxLength={5}
                     value={formData.targetPort}
                     onChange={(e) => handleInputChange("targetPort", e.target.value)}
-                    description={formData.mode === "server" ? "转发端口" : "本地端口"}
+                    onKeyDown={(e) => {
+                      // 阻止输入非数字字符
+                      if (!/^\d$/.test(e.key) && !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab"].includes(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
                   />
                 </div>
               </CardBody>
@@ -505,7 +537,7 @@ export default function CreateTunnelPage() {
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务器模式" : "客户端模式"}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例名称：</span> {formData.tunnelName}</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
                 {formData.mode === "server" &&
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>

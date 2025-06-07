@@ -149,26 +149,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (!nodepassResponse.ok) {
-        // 创建失败的隧道记录，状态设为 error
-        const tunnel = await prisma.tunnel.create({
-          data: {
-            name,
-            endpointId,
-            mode: mode as any,
-            status: TunnelStatus.error, // 设置为错误状态
-            tunnelAddress,
-            tunnelPort,
-            targetAddress,
-            targetPort,
-            tlsMode: tlsMode as any,
-            certPath,
-            keyPath,
-            logLevel: logLevel as any,
-            commandLine,
-            instanceId: null // API 创建失败，没有实例 ID
-          }
-        });
-
         throw new Error(`NodePass API响应错误: ${nodepassResponse.status}`);
       }
 
@@ -228,40 +208,8 @@ export async function POST(request: NextRequest) {
       });
 
     } catch (apiError) {
-      console.error('调用NodePass API失败:', apiError);
-      
-      // 如果API调用失败，仍然创建本地记录，但状态为错误
-      const tunnel = await prisma.tunnel.create({
-        data: {
-          name,
-          endpointId,
-          mode: mode as any,
-          tunnelAddress,
-          tunnelPort,
-          targetAddress,
-          targetPort,
-          tlsMode: tlsMode as any,
-          certPath,
-          keyPath,
-          logLevel: logLevel as any,
-          commandLine,
-          status: TunnelStatus.error
-        }
-      });
-
-      // 手动更新端点的实例数量
-      await updateEndpointInstanceCount(endpointId);
-
-      return NextResponse.json({
-        success: false,
-        error: 'NodePass API调用失败，隧道配置已保存但状态为错误',
-        tunnel: convertBigIntToNumber({
-          id: tunnel.id,
-          name: tunnel.name
-        } as any)
-      }, { status: 207 }); // 207 Multi-Status表示部分成功
+      throw new Error(`NodePass API响应错误: ${apiError}`);
     }
-
   } catch (error) {
     console.error('创建隧道实例失败:', error);
     return NextResponse.json(
@@ -523,8 +471,7 @@ async function updateEndpointInstanceCount(endpointId: number) {
     // 统计运行中的隧道实例数量
     const runningInstances = await prisma.tunnel.count({
       where: {
-        endpointId: endpointId,
-        status: TunnelStatus.running
+        endpointId: endpointId
       }
     });
 

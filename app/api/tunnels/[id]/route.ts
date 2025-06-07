@@ -178,14 +178,7 @@ export async function DELETE(
     }
 
     // 更新端点的实例数量
-    await prisma.endpoint.update({
-      where: { id: tunnel.endpointId },
-      data: {
-        tunnelCount: {
-          decrement: 1
-        }
-      }
-    });
+    await updateEndpointInstanceCount(tunnel.endpointId);
 
     // 记录操作日志
     await prisma.tunnelOperationLog.create({
@@ -214,5 +207,31 @@ export async function DELETE(
       error: '删除隧道失败',
       details: error instanceof Error ? error.message : '未知错误'
     }, { status: 500 });
+  }
+} 
+
+// 更新端点实例数量的辅助函数
+async function updateEndpointInstanceCount(endpointId: number) {
+  try {
+    // 统计运行中的隧道实例数量
+    const runningInstances = await prisma.tunnel.count({
+      where: {
+        endpointId: endpointId
+      }
+    });
+
+    // 更新端点的实例数量
+    await prisma.endpoint.update({
+      where: { id: endpointId },
+      data: { 
+        tunnelCount: runningInstances,
+        lastCheck: new Date()
+      }
+    });
+
+    console.log(`端点 ${endpointId} 实例统计已更新: ${runningInstances} 个运行中`);
+
+  } catch (error) {
+    console.error(`更新端点 ${endpointId} 实例统计失败:`, error);
   }
 } 
