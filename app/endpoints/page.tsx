@@ -159,7 +159,7 @@ export default function EndpointsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: deleteModalEndpoint.id }),
+        body: JSON.stringify({ id: Number(deleteModalEndpoint.id) }),
       });
 
       if (!response.ok) throw new Error('删除主控失败');
@@ -202,7 +202,7 @@ export default function EndpointsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          id: endpointId.toString(),
+          id: Number(endpointId),
           action: 'reconnect'
         }),
       });
@@ -241,7 +241,7 @@ export default function EndpointsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          id: endpointId.toString(),
+          id: Number(endpointId),
           action: 'reconnect'  // 使用reconnect来建立连接
         }),
       });
@@ -280,7 +280,7 @@ export default function EndpointsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          id: endpointId.toString(),
+          id: Number(endpointId),
           action: 'disconnect'
         }),
       });
@@ -435,21 +435,18 @@ export default function EndpointsPage() {
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
-            className={
+          <div
+            className={cn(
+              "inline-flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors",
               realTimeData.status === EndpointStatus.ONLINE 
-                ? "text-warning hover:text-warning-600" 
-                : "text-success hover:text-success-600"
-            }
-            onPress={() => {
+                ? "text-warning hover:bg-warning/10" 
+                : "text-success hover:bg-success/10"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
               if (realTimeData.status === EndpointStatus.ONLINE) {
-                // 断开连接的逻辑
                 handleDisconnect(endpoint.id);
               } else {
-                // 建立连接的逻辑
                 handleConnect(endpoint.id);
               }
             }}
@@ -458,16 +455,16 @@ export default function EndpointsPage() {
               icon={realTimeData.status === EndpointStatus.ONLINE ? faPlugCircleXmark : faPlug} 
               className={realTimeData.status === EndpointStatus.ONLINE ? "text-warning" : "text-success"}
             />
-          </Button>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
-            className="text-danger hover:text-danger-600"
-            onPress={() => handleDeleteClick(endpoint)}
+          </div>
+          <div
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer text-danger hover:bg-danger/10 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(endpoint);
+            }}
           >
             <FontAwesomeIcon icon={faTrash} />
-          </Button>
+          </div>
         </div>
       </div>
     );
@@ -488,7 +485,7 @@ export default function EndpointsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: selectedEndpoint.id,
+          id: Number(selectedEndpoint.id),
           name: newName,
           action: 'rename'
         }),
@@ -613,7 +610,10 @@ export default function EndpointsPage() {
                       <FontAwesomeIcon 
                         icon={showApiKey[endpoint.id] ? faEyeSlash : faEye} 
                         className="text-xs cursor-pointer hover:text-primary w-4"
-                        onClick={() => toggleApiKeyVisibility(endpoint.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleApiKeyVisibility(endpoint.id);
+                        }}
                       />
                       <span className="text-small font-mono flex-1 truncate">
                         {showApiKey[endpoint.id] ? endpoint.apiKey : "••••••••••••••••••••••••••"}

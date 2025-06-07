@@ -88,7 +88,6 @@ export async function initializeSystem(): Promise<{ username: string; password: 
   try {
     // 检查是否已经初始化
     if (await isSystemInitialized()) {
-      logger.info('系统已经初始化过了');
       return null;
     }
 

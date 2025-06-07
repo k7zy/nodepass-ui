@@ -173,7 +173,7 @@ export default function CreateTunnelPage() {
       return;
     }
 
-    // 如果是服务器模式且TLS模式为mode2，验证证书路径
+    // 如果是服务端模式且TLS模式为mode2，验证证书路径
     if (formData.mode === 'server' && formData.tlsMode === 'mode2') {
       if (!formData.certPath || !formData.keyPath) {
         showToast('TLS模式2需要提供证书和密钥文件路径', 'warning');
@@ -341,7 +341,7 @@ export default function CreateTunnelPage() {
                   />
                 </div>
                 <div className="text-center w-full">
-                  <h3 className="font-semibold">服务器模式</h3>
+                  <h3 className="font-semibold">服务端模式</h3>
                   <p className="text-small text-default-500">隧道监听端，提供目标服务出口或入口，需双端握手</p>
                 </div>
               </CardBody>
@@ -540,7 +540,7 @@ export default function CreateTunnelPage() {
               <h3 className="text-lg font-semibold mb-4">请确认以下实例配置：</h3>
               <div className="space-y-2 text-sm">
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务器模式" : "客户端模式"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务端模式" : "客户端模式"}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例名称：</span> {formData.tunnelName}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>

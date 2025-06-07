@@ -216,10 +216,23 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               ))}
             </DropdownMenu>
           </Dropdown>
+
         </Flex>
 
         {/* 右侧：操作按钮组 */}
         <Flex className="gap-2 flex-shrink-0">
+          {/* 刷新按钮 */}
+          <Button 
+            variant="flat"
+            size="sm"
+            className="md:text-sm"
+            startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faRotateRight} />}
+            onClick={onRefresh}
+            isDisabled={loading}
+          >
+            <span className="hidden sm:inline">刷新</span>
+            <span className="sm:hidden">刷新</span>
+          </Button>
           <Button 
             color="primary" 
             size="sm"
@@ -231,64 +244,6 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <span className="hidden sm:inline">创建实例</span>
             <span className="sm:hidden">创建</span>
           </Button>
-          
-          {/* 刷新按钮 */}
-          <Button
-            variant="flat"
-            size="sm"
-            isIconOnly
-            onClick={onRefresh}
-            isDisabled={loading}
-          >
-            <FontAwesomeIcon icon={faRotateRight} className="text-default-600" />
-          </Button>
-
-          <Dropdown>
-            <DropdownTrigger>
-              <Button 
-                variant="bordered" 
-                size="sm"
-                isIconOnly
-                isDisabled={loading}
-              >
-                <FontAwesomeIcon icon={faEllipsisV} />
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="更多操作" variant="faded">
-              <DropdownItem 
-                key="stop" 
-                className="text-warning"
-                color="warning"
-                startContent={<FontAwesomeIcon icon={faStop} className="text text-warning pointer-events-none flex-shrink-0" />}
-              >
-                停止选中
-              </DropdownItem>
-              <DropdownItem 
-                key="start" 
-                className="text-success"
-                color="success"
-                startContent={<FontAwesomeIcon icon={faPlay} className="text text-success pointer-events-none flex-shrink-0" />}
-              >
-                启动选中
-              </DropdownItem>
-              <DropdownItem 
-                key="restart" 
-                className="text-primary"
-                color="primary"
-                startContent={<FontAwesomeIcon icon={faRotateRight} className="text text-primary pointer-events-none flex-shrink-0" />}
-              >
-                重启选中
-              </DropdownItem>
-              <DropdownItem 
-                key="delete" 
-                className="text-danger"
-                color="danger"
-                startContent={<FontAwesomeIcon icon={faTrash} className="text text-danger pointer-events-none flex-shrink-0" />}
-              >
-                删除选中
-              </DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
         </Flex>
       </div>
     </div>

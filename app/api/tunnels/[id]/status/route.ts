@@ -70,9 +70,9 @@ export async function PATCH(
         const errorText = await nodepassResponse.text();
         throw new Error(`NodePass API 响应错误: ${nodepassResponse.status} - ${errorText}`);
       }
-
+      
       const nodepassData = await nodepassResponse.json();
-
+      /*
       // API 调用成功，更新隧道状态
       let newStatus: TunnelStatus;
       switch (nodepassData.status) {
@@ -87,6 +87,7 @@ export async function PATCH(
       }
 
       // 更新隧道状态
+      console.log("此处更新新状态为",newStatus,action)
       const updatedTunnel = await prisma.tunnel.update({
         where: { id: tunnelId },
         data: { 
@@ -94,7 +95,7 @@ export async function PATCH(
           lastEventTime: new Date() // 添加事件时间
         }
       });
-
+      */
       // 记录成功日志
       await prisma.tunnelOperationLog.create({
         data: {
@@ -102,14 +103,14 @@ export async function PATCH(
           tunnelName: tunnel.name,
           action: action,
           status: "success",
-          message: `${action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启'}隧道成功，状态: ${newStatus}`
+          message: `${action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启'}隧道成功`
         }
       });
 
       // 返回成功响应
       return NextResponse.json({
         success: true,
-        tunnel: convertBigIntToNumber(updatedTunnel),
+        tunnel: convertBigIntToNumber(tunnel.id),
         nodepassData: convertBigIntToNumber(nodepassData)
       });
 

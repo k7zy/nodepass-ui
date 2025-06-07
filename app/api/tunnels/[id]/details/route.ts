@@ -143,7 +143,7 @@ export async function GET(
       id: tunnel.id,
       instanceId: tunnel.instanceId,
       name: tunnel.name,
-      type: tunnel.mode === 'server' ? '服务器' : '客户端',
+      type: tunnel.mode === 'server' ? '服务端' : '客户端',
       status: {
         type: tunnel.status === 'running' ? 'success' : tunnel.status === 'error' ? 'warning' : 'danger',
         text: tunnel.status === 'running' ? '运行中' : tunnel.status === 'error' ? '错误' : '已停止'

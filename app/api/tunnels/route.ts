@@ -25,7 +25,7 @@ export async function GET() {
     const formattedTunnels = tunnels.map(tunnel => ({
       id: tunnel.id,
       instanceId: tunnel.instanceId || null,
-      type: tunnel.mode === 'server' ? '服务器' : '客户端',
+      type: tunnel.mode === 'server' ? '服务端' : '客户端',
       name: tunnel.name,
       endpoint: tunnel.endpoint.name,
       endpointId: tunnel.endpointId,

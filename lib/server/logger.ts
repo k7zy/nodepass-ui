@@ -1,4 +1,5 @@
 import type { WriteStream } from 'fs';
+import { number } from 'zod';
 const fs = require('fs');
 const path = require('path');
 const { format } = require('date-fns');
@@ -47,14 +48,16 @@ class Logger {
   }
   
   private formatMessage(level: LogLevelType, message: string, meta?: any): string {
-    const timestamp = format(new Date(), 'yyyy-MM-dd HH:mm:ss.SSS');
-    let logMessage = `[${timestamp}] [${level}] ${message}`;
+    // const timestamp = format(, 'yyyy-MM-dd HH:mm:ss.SSS');
+    let logMessage = `${new Date().toISOString()} ${level} ${message}`;
     
     if (meta) {
       if (meta instanceof Error) {
         logMessage += `\nError: ${meta.message}\nStack: ${meta.stack}`;
-      } if (typeof meta === 'string'){
+      } else if (typeof meta === 'string'){
         logMessage += `${meta}`
+      } else if (typeof meta === 'number') {
+        logMessage += `${meta}`;
       } else {
         logMessage += `\nMeta: ${JSON.stringify(meta, null, 2)}`;
       }

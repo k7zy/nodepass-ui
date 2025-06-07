@@ -31,7 +31,6 @@ import {
   faPen
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
-import { Selection } from "@react-types/shared";
 import { Box, Flex } from "@/components";
 import { TunnelToolBox } from "./components/toolbox";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
@@ -57,7 +56,6 @@ interface Tunnel {
 export default function TunnelsPage() {
   const router = useRouter();
   const [filterValue, setFilterValue] = React.useState("");
-  const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]));
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [endpointFilter, setEndpointFilter] = React.useState("all");
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
@@ -225,7 +223,7 @@ export default function TunnelsPage() {
 
       addToast({
         title: "修改成功",
-        description: "隧道名称已更新",
+        description: "实例名称已更新",
         color: "success",
       });
 
@@ -291,7 +289,7 @@ export default function TunnelsPage() {
         return (
           <Chip 
             variant="flat" 
-            color={tunnel.type === "服务器" ? "primary" : "secondary"}
+            color={tunnel.type === "服务端" ? "primary" : "secondary"}
             size="sm"
             classNames={{
               base: "text-xs md:text-sm"
@@ -489,7 +487,7 @@ export default function TunnelsPage() {
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Chip 
                           variant="flat" 
-                          color={tunnel.type === "服务器" ? "primary" : "secondary"}
+                          color={tunnel.type === "服务端" ? "primary" : "secondary"}
                           size="sm"
                           className="text-xs"
                         >
@@ -584,9 +582,6 @@ export default function TunnelsPage() {
                 shadow="none"
                 aria-label="实例实例表格"
                 className="min-w-full"
-                selectionMode="multiple"
-                selectedKeys={selectedKeys}
-                onSelectionChange={setSelectedKeys}
                 classNames={{
                   th: "text-xs md:text-sm",
                   td: "py-3"
@@ -750,13 +745,13 @@ export default function TunnelsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon icon={faPen} className="text-primary" />
-                  修改隧道名称
+                  修改实例名称
                 </div>
               </ModalHeader>
               <ModalBody>
                 <Input
-                  label="隧道名称"
-                  placeholder="请输入新的隧道名称"
+                  label="实例名称"
+                  placeholder="请输入新的实例名称"
                   value={newTunnelName}
                   onValueChange={setNewTunnelName}
                   variant="bordered"

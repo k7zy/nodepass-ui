@@ -2,6 +2,7 @@
 // 确保在应用启动时就创建 SSEManager 实例
 
 import { sseManager, SSEManager } from './sse-manager';
+import { logger } from '@/lib/logger';
 
 // 定义全局类型
 declare global {
@@ -12,11 +13,10 @@ declare global {
 function initializeGlobalSSE() {
   // 确保 SSEManager 实例已创建并绑定到全局对象
   if (!global.__nodepass_sse_manager) {
-    console.log('[Global-SSE] 初始化全局SSE管理器');
+    logger.info('[Global-SSE] 初始化全局SSE管理器');
     global.__nodepass_sse_manager = sseManager;
-    console.log('[Global-SSE] SSE管理器已注册到全局对象');
   } else {
-    console.log('[Global-SSE] 全局SSE管理器已存在');
+    logger.info('[Global-SSE] 全局SSE管理器已存在');
   }
   
   // 返回管理器实例
@@ -26,7 +26,7 @@ function initializeGlobalSSE() {
 // 获取全局 SSE 管理器
 export function getGlobalSSEManager(): SSEManager {
   if (!global.__nodepass_sse_manager) {
-    console.log('[Global-SSE] 全局SSE管理器不存在，正在初始化...');
+    logger.info('[Global-SSE] 全局SSE管理器不存在，正在初始化...');
     return initializeGlobalSSE();
   }
   
