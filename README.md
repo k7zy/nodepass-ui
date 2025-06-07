@@ -157,7 +157,7 @@ pnpm exec prisma studio
 
 ## 📄 许可证
 
-本项目基于 [MIT 许可证](LICENSE) 开源。
+本项目基于 [BSD-3-Clause 许可证](LICENSE) 开源。
 
 ## 📞 支持
 

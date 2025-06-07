@@ -1,4 +1,4 @@
-# 🐳 NodePass WebUI Docker 部署指南
+# 🐳 NodePassDash Docker 部署指南
 
 NodePass WebUI 提供了完整的 Docker 化解决方案，支持快速部署和一键启动。
 
