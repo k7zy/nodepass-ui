@@ -162,13 +162,7 @@ docker-compose logs -f nodepassdash
 
 ## 🛡️ 安全建议
 
-### 1. 修改默认密码
-```bash
-# 生成强密码
-JWT_SECRET=$(openssl rand -base64 32)
-```
-
-### 2. 数据备份
+### 数据备份
 ```bash
 # 备份 SQLite 数据库
 docker-compose stop nodepassdash  # 停止服务以确保数据一致性
