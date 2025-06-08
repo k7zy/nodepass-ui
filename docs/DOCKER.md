@@ -203,14 +203,15 @@ docker-compose logs -f nodepassdash
 
 ## 🛡️ 安全建议
 
-### HTTPS 配置
+### 🔒 HTTPS 配置
 
 强烈建议在生产环境中使用 HTTPS。由于 NodePassDash 默认运行在 3000 端口，您可以通过以下方式配置 HTTPS：
 
-#### 方案一：使用 Nginx 反向代理（推荐）
+#### 1️⃣ 使用 Nginx 反向代理（推荐）
+
+创建配置文件 `/etc/nginx/conf.d/nodepass.conf`：
 
 ```nginx
-# /etc/nginx/conf.d/nodepass.conf
 server {
     listen 443 ssl http2;
     server_name your-domain.com;
@@ -251,23 +252,21 @@ server {
 }
 ```
 
-#### 方案二：使用 Caddy（简单配置）
+#### 2️⃣ 使用 Caddy（最简单）
 
-Caddy 会自动申请和续期 SSL 证书，配置更简单：
+Caddy 会自动申请和续期 SSL 证书，创建 `Caddyfile`：
 
 ```caddyfile
-# Caddyfile
 your-domain.com {
     reverse_proxy localhost:3000
 }
 ```
 
-#### 方案三：使用 Docker Compose 集成 Nginx
+#### 3️⃣ Docker Compose 集成方案
 
-如果您使用 Docker Compose 部署，可以直接集成 Nginx：
+创建 `docker-compose.yml`：
 
 ```yaml
-# docker-compose.yml
 version: '3'
 
 services:
@@ -296,13 +295,14 @@ networks:
     driver: bridge
 ```
 
-> 💡 **提示**：
-> - 请确保将配置中的 `your-domain.com` 替换为您的实际域名
-> - SSL 证书可以使用 Let's Encrypt 免费申请
-> - 建议启用 HSTS，但首次配置时请谨慎测试
-> - 如果使用 CDN，请确保正确配置 X-Forwarded-* 头部
+**🔔 注意事项：**
 
-### 数据备份
+* 部署前请将配置中的 `your-domain.com` 替换为实际域名
+* SSL 证书推荐使用 Let's Encrypt 免费申请
+* 建议在充分测试后启用 HSTS
+* 使用 CDN 时需正确配置 X-Forwarded-* 头部
+
+### 💾 数据备份
 ```bash
 # 备份 SQLite 数据库
 docker-compose stop nodepassdash  # 停止服务以确保数据一致性
