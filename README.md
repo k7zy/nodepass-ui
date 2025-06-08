@@ -138,7 +138,7 @@ pnpm exec prisma studio
 1. Fork 本仓库
 2. 创建功能分支 (`git checkout -b features/amazing-features`)
 3. 提交更改 (`git commit -m 'Add some amazing features'`)
-4. 推送到分支 (`git push origin feature/samazing-features`)
+4. 推送到分支 (`git push origin features/samazing-features`)
 5. 开启 Pull Request
 
 ## 📄 许可证
