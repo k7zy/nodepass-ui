@@ -17,7 +17,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/components/auth-provider";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { addToast } from "@heroui/toast";
 
 /**
@@ -28,6 +28,7 @@ export const NavbarUser = () => {
   const { user, logout } = useAuth();
   const { isOpen: isPasswordOpen, onOpen: onPasswordOpen, onOpenChange: onPasswordOpenChange } = useDisclosure();
   const { isOpen: isUsernameOpen, onOpen: onUsernameOpen, onOpenChange: onUsernameOpenChange } = useDisclosure();
+  const { isOpen: isImportOpen, onOpen: onImportOpen, onOpenChange: onImportOpenChange } = useDisclosure();
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -35,6 +36,8 @@ export const NavbarUser = () => {
   });
   const [newUsername, setNewUsername] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = async () => {
     await logout();
@@ -191,6 +194,108 @@ export const NavbarUser = () => {
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      const response = await fetch('/api/data/export');
+      if (!response.ok) {
+        throw new Error('导出失败');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nodepass-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      addToast({
+        title: "导出成功",
+        description: "数据已成功导出到文件",
+        color: "success",
+      });
+    } catch (error) {
+      console.error('导出数据失败:', error);
+      addToast({
+        title: "导出失败",
+        description: "导出数据时发生错误",
+        color: "danger",
+      });
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/json') {
+        addToast({
+          title: "文件格式错误",
+          description: "请选择 JSON 格式的文件",
+          color: "danger",
+        });
+        return;
+      }
+      setSelectedFile(file);
+    }
+  };
+
+  const handleImportData = async () => {
+    if (!selectedFile) {
+      addToast({
+        title: "请选择文件",
+        description: "请先选择要导入的数据文件",
+        color: "danger",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const fileContent = await selectedFile.text();
+      const importData = JSON.parse(fileContent);
+
+      const response = await fetch('/api/data/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(importData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        addToast({
+          title: "导入成功",
+          description: result.message,
+          color: "success",
+        });
+        onImportOpenChange();
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        // 添加延迟以确保 Toast 消息能够显示
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        throw new Error(result.error || '导入失败');
+      }
+    } catch (error) {
+      console.error('导入数据失败:', error);
+      addToast({
+        title: "导入失败",
+        description: error instanceof Error ? error.message : "导入数据时发生错误",
+        color: "danger",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!user) {
     return null; // 未登录时不显示用户菜单
   }
@@ -204,7 +309,7 @@ export const NavbarUser = () => {
             as="button"
             className="transition-transform"
             color="primary"
-            name={user.username}
+            name={user?.username}
             size="sm"
             showFallback
           />
@@ -220,13 +325,17 @@ export const NavbarUser = () => {
               onPasswordOpen();
             } else if (key === 'change-username') {
               onUsernameOpen();
+            } else if (key === 'export-data') {
+              handleExportData();
+            } else if (key === 'import-data') {
+              onImportOpen();
             }
           }}
         >
           {/* 用户信息 */}
           <DropdownItem key="profile" className="h-14 gap-2">
             <p className="font-semibold">已登录为</p>
-            <p className="font-semibold">{user.username}</p>
+            <p className="font-semibold">{user?.username}</p>
           </DropdownItem>
           
           {/* 修改用户名 */}
@@ -245,14 +354,23 @@ export const NavbarUser = () => {
             修改密码
           </DropdownItem>
           
-          {/* 帮助文档 */}
-          {/* <DropdownItem 
-            key="help"
-            href="/docs"
-            startContent={<Icon icon="solar:document-text-linear" width={18} />}
+          {/* 导出数据 */}
+          <DropdownItem
+            key="export-data"
+            startContent={<Icon icon="solar:upload-square-linear" width={18} />}
+            isDisabled={isSubmitting}
           >
-            帮助文档
-          </DropdownItem> */}
+            导出数据
+          </DropdownItem>
+
+          {/* 导入数据 */}
+          <DropdownItem
+            key="import-data"
+            startContent={<Icon icon="solar:download-square-linear" width={18} />}
+            isDisabled={isSubmitting}
+          >
+            导入数据
+          </DropdownItem>
           
           {/* 退出登录 */}
           <DropdownItem 
@@ -397,6 +515,79 @@ export const NavbarUser = () => {
                   startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 导入数据模态框 */}
+      <Modal 
+        isOpen={isImportOpen} 
+        onOpenChange={onImportOpenChange}
+        placement="center"
+        backdrop="blur"
+        classNames={{
+          backdrop: "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20"
+        }}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Icon icon="solar:import-bold" className="text-primary" width={24} />
+                  导入数据
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      color="primary"
+                      variant="light"
+                      startContent={<Icon icon="solar:folder-with-files-linear" width={18} />}
+                      onPress={() => fileInputRef.current?.click()}
+                      isDisabled={isSubmitting}
+                    >
+                      选择文件
+                    </Button>
+                    <span className="text-small text-default-500">
+                      {selectedFile ? selectedFile.name : '未选择文件'}
+                    </span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+                  </div>
+                  
+                  <div className="text-small text-default-500">
+                    <p>• 请选择之前导出的 JSON 格式数据文件</p>
+                    <p>• 导入过程中请勿关闭窗口</p>
+                    <p>• 重复的数据将被自动跳过</p>
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="danger" 
+                  variant="light" 
+                  onPress={onClose}
+                  isDisabled={isSubmitting}
+                >
+                  取消
+                </Button>
+                <Button 
+                  color="primary" 
+                  onPress={handleImportData}
+                  isLoading={isSubmitting}
+                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                >
+                  {isSubmitting ? "导入中..." : "开始导入"}
                 </Button>
               </ModalFooter>
             </>

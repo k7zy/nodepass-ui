@@ -211,14 +211,28 @@ export class SSEService {
     
     this.connections.delete(endpointId.toString());
     
-    // 更新端点状态
-    await prisma.endpoint.update({
-      where: { id: endpointId },
-      data: { 
-        status: EndpointStatus.OFFLINE,
-        lastCheck: new Date()
+    try {
+      // 先检查端点是否存在
+      const endpoint = await prisma.endpoint.findUnique({
+        where: { id: endpointId }
+      });
+
+      // 只有当端点存在时才更新状态
+      if (endpoint) {
+        await prisma.endpoint.update({
+          where: { id: endpointId },
+          data: { 
+            status: EndpointStatus.OFFLINE,
+            lastCheck: new Date()
+          }
+        });
+        logger.info(`[SSE-Service] 端点 ${endpointId} 状态已更新为离线`);
+      } else {
+        logger.info(`[SSE-Service] 端点 ${endpointId} 已不存在，跳过状态更新`);
       }
-    });
+    } catch (error) {
+      logger.error(`[SSE-Service] 更新端点 ${endpointId} 状态失败:`, error);
+    }
     
     logger.info(`[SSE-Service] 端点 ${endpointId} 已断开连接`);
   }
@@ -1504,6 +1518,37 @@ export class SSEService {
       logger.error(`[SSE-Service] SSE连接测试失败:`, error);
       throw error;
     }
+  }
+
+  /**
+   * 重置SSE服务
+   * 停止所有连接和健康检查,但不销毁实例
+   */
+  public async reset() {
+    logger.info('[SSE-Service] 开始重置SSE服务...');
+    
+    // 清理健康检查定时器
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+      logger.info('[SSE-Service] 已停止健康检查');
+    }
+    
+    // 断开所有连接
+    const disconnectPromises = Array.from(this.connections.keys()).map(endpointId => 
+      this.disconnectEndpoint(parseInt(endpointId))
+    );
+    
+    await Promise.all(disconnectPromises);
+    logger.info(`[SSE-Service] 已断开 ${disconnectPromises.length} 个端点连接`);
+    
+    // 清空连接映射
+    this.connections.clear();
+    
+    // 重置初始化标志
+    this.isInitialized = false;
+    
+    logger.info('[SSE-Service] SSE服务重置完成');
   }
 }
 
