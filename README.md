@@ -1,6 +1,6 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)
 
 一个现代化的 NodePass 管理界面，基于 Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
@@ -110,8 +110,8 @@ pnpm dev
 
 ```
 NodePassDash/
-├── app/                    # Next.js App Router 页面
-├── components/             # React 组件
+├── app/                   # Next.js App Router 页面
+├── components/            # React 组件
 ├── lib/                   # 工具库和配置
 ├── prisma/                # 数据库模式和迁移
 ├── scripts/               # 构建和部署脚本
@@ -125,25 +125,11 @@ NodePassDash/
 ```bash
 # 创建新迁移
 pnpm exec prisma migrate dev --name your_migration_name
-
 # 重置数据库
 pnpm exec prisma migrate reset
-
 # 查看数据库
 pnpm exec prisma studio
 ```
-
-## 🚦 系统要求
-
-### 最低要求
-- CPU: 1 核心
-- 内存: 512MB
-- 存储: 1GB
-
-### 推荐配置
-- CPU: 2+ 核心
-- 内存: 1GB+
-- 存储: 5GB+
 
 ## 🤝 贡献指南
 
@@ -162,9 +148,9 @@ pnpm exec prisma studio
 ## 📞 支持
 
 - 🐛 问题报告: [GitHub Issues](https://github.com/NodePassProject/NodePassDash/issues)
-- 📖 文档: [项目 Wiki](https://github.com/NodePassProject/NodePassDash/wiki)
-- 💬 社区讨论: [GitHub Discussions](https://github.com/NodePassProject/NodePassDash/discussions)
 - 🐳 Docker 部署: [Docker 指南](docs/DOCKER.md)
+- 💬 社区讨论: [Telegram 群组](https://t.me/NodePassGroup)
+- 📢 频道: [Telegram 频道](https://t.me/NodePassChannel)
 
 ---
 

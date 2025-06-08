@@ -90,7 +90,7 @@ export async function GET(
         logs: { not: null } // 确保 logs 字段不为空
       },
       orderBy: {
-        eventTime: 'asc' // 按时间正序排列
+        eventTime: 'desc' // 按时间正序排列
       },
       take: 200, // 获取最近200条日志
       select: {

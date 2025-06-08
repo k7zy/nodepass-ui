@@ -1,45 +1,100 @@
 # 🐳 NodePassDash Docker 部署指南
 
-NodePass WebUI 提供了完整的 Docker 化解决方案，支持快速部署和一键启动。
+NodePassDash 提供了完整的 Docker 化解决方案，支持快速部署和一键启动。
 
-## 🏗️ 架构概述
+<div align="center">
 
-NodePass WebUI 采用**整合架构**设计：
-- **单端口运行**: 只使用 3000 端口
-- **SSE服务整合**: SSE服务直接运行在 Next.js 应用内
-- **简化部署**: 更简单的配置和管理
-- **SQLite数据库**: 使用文件型数据库，无需额外服务
-- **性能优化**: 减少网络开销和延迟
+</div>
 
-## 🚀 快速开始
+<div class="setup-guide">
+<table>
+<tr>
+<td>
+<h4>📋 初始化流程</h4>
 
-> ⚠️ **重要提醒：系统初始化**
-> 
-> 首次部署时，系统会自动初始化并创建管理员账户。部署完成后，请立即执行以下命令查看初始登录信息：
-> ```bash
-> # 如果使用 Docker Plugin
-> docker compose logs | grep -A 6 "系统初始化完成"
-> # 或使用独立安装的 docker-compose
-> docker-compose logs | grep -A 6 "系统初始化完成"
-> # 如果使用 Docker 命令
-> docker logs nodepassdash | grep -A 6 "系统初始化完成"
->
-> # 你将看到如下信息：
-> ================================
-> 🚀 NodePass 系统初始化完成！
-> ================================
-> 管理员账户信息：
-> 用户名: xxxxxx
-> 密码: xxxxxxxxxxxx
-> ================================
-> ⚠️  请妥善保存这些信息！
-> ================================
-> ```
-> 
-> **⚠️ 安全提示：** 
-> - 请在首次登录后立即修改管理员密码
-> - 初始密码仅会显示一次，请务必及时保存
-> - 如果错过初始密码，需要删除数据库文件并重新部署
+首次部署时，系统会自动初始化并创建管理员账户。部署完成后，请立即执行以下命令获取登录信息：
+
+```bash
+# 使用 Docker Plugin
+docker compose logs | grep -A 6 "系统初始化完成"
+
+# 或使用独立安装的 docker-compose
+docker-compose logs | grep -A 6 "系统初始化完成"
+
+# 如果使用 Docker 命令
+docker logs nodepassdash | grep -A 6 "系统初始化完成"
+```
+
+<h4>📝 初始化输出示例</h4>
+
+```
+================================
+🚀 NodePass 系统初始化完成！
+================================
+管理员账户信息：
+用户名: xxxxxx
+密码: xxxxxxxxxxxx
+================================
+⚠️  请妥善保存这些信息！
+================================
+```
+
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td>
+<h4>⚠️ 重要安全提示</h4>
+
+- **密码修改**: 请在首次登录后立即修改管理员密码
+- **密码保存**: 初始密码仅显示一次，请务必及时保存
+- **重置说明**: 如果错过初始密码，需要删除数据库文件并重新部署
+
+</td>
+</tr>
+</table>
+</div>
+
+<style>
+.setup-guide table {
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid #e9ecef;
+}
+
+.setup-guide td {
+    padding: 20px;
+}
+
+.setup-guide h4 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 8px;
+}
+
+.setup-guide code {
+    background: #2b3a4a;
+    color: #fff;
+    padding: 16px;
+    border-radius: 6px;
+    display: block;
+    margin: 16px 0;
+}
+
+.setup-guide ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.setup-guide li {
+    margin: 8px 0;
+}
+</style>
+
 
 ### 方式一：使用预构建镜像（推荐）
 
@@ -137,23 +192,115 @@ docker-compose logs -f nodepassdash
 ```
 
 
-## 📈 性能优化
+## 📈 系统最低要求
 
-### 系统要求
+- CPU: 1核
+- 内存: 512MB
+- 磁盘空间: 2GB
+- Docker 版本: 20.10.0 或更高
 
-**最低要求**:
-- Docker Engine 20.0+
-- Docker Compose 2.0+
-- 可用内存: 256MB
-- 可用存储: 500MB
-
-**推荐配置**:
-- Docker Engine 24.0+
-- Docker Compose 2.20+
-- 可用内存: 512MB+
-- 可用存储: 1GB+
+> 💡 **注意**：镜像大小约 1.3GB，请确保有足够的磁盘空间用于下载和运行。
 
 ## 🛡️ 安全建议
+
+### HTTPS 配置
+
+强烈建议在生产环境中使用 HTTPS。由于 NodePassDash 默认运行在 3000 端口，您可以通过以下方式配置 HTTPS：
+
+#### 方案一：使用 Nginx 反向代理（推荐）
+
+```nginx
+# /etc/nginx/conf.d/nodepass.conf
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    # SSL 证书配置
+    ssl_certificate /path/to/your/fullchain.pem;
+    ssl_certificate_key /path/to/your/privkey.pem;
+    
+    # SSL 优化配置
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    # HSTS 配置（按需启用）
+    # add_header Strict-Transport-Security "max-age=63072000" always;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# HTTP 重定向到 HTTPS
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+#### 方案二：使用 Caddy（简单配置）
+
+Caddy 会自动申请和续期 SSL 证书，配置更简单：
+
+```caddyfile
+# Caddyfile
+your-domain.com {
+    reverse_proxy localhost:3000
+}
+```
+
+#### 方案三：使用 Docker Compose 集成 Nginx
+
+如果您使用 Docker Compose 部署，可以直接集成 Nginx：
+
+```yaml
+# docker-compose.yml
+version: '3'
+
+services:
+  nodepass:
+    image: nodepassdash:latest
+    restart: unless-stopped
+    networks:
+      - nodepass-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL证书目录
+    depends_on:
+      - nodepass
+    restart: unless-stopped
+    networks:
+      - nodepass-network
+
+networks:
+  nodepass-network:
+    driver: bridge
+```
+
+> 💡 **提示**：
+> - 请确保将配置中的 `your-domain.com` 替换为您的实际域名
+> - SSL 证书可以使用 Let's Encrypt 免费申请
+> - 建议启用 HSTS，但首次配置时请谨慎测试
+> - 如果使用 CDN，请确保正确配置 X-Forwarded-* 头部
 
 ### 数据备份
 ```bash

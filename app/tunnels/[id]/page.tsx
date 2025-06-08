@@ -962,12 +962,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   <h4 className="font-semibold mb-3 text-sm md:text-base">实例配置</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                     <CellValue 
-                      label="监听端口" 
-                      value={<span className="font-mono text-sm">{tunnelInfo.config.listenPort}</span>} 
+                      label="隧道地址" 
+                      value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
                     />
                     <CellValue 
-                      label="目标端口" 
-                      value={<span className="font-mono text-sm">{tunnelInfo.config.targetPort}</span>} 
+                      label="目标地址" 
+                      value={<span className="font-mono text-sm">{tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}</span>} 
                     />
                       
                       <CellValue 
