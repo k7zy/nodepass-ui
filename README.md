@@ -75,7 +75,7 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Next.js 14、He
 
 #### 前提条件
 
-- Node.js 18+
+- Node.js 20+ (本地开发环境是v20.15.0)
 - pnpm
 - SQLite 数据库
 
