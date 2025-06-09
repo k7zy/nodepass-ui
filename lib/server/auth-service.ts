@@ -101,10 +101,7 @@ export async function initializeSystem(): Promise<{ username: string; password: 
     await setSystemConfig(SYSTEM_CONFIG_KEYS.ADMIN_PASSWORD, passwordHash, '管理员密码哈希');
     await setSystemConfig(SYSTEM_CONFIG_KEYS.IS_INITIALIZED, 'true', '系统是否已初始化');
 
-    logger.info('系统初始化完成', {
-      username,
-      passwordGenerated: true
-    });
+    logger.info('系统初始化完成');
 
     console.log('================================');
     console.log('🚀 NodePass 系统初始化完成！');

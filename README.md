@@ -34,7 +34,7 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Next.js 14、He
 
 ## 🚀 快速开始
 
->[>点此体验<](https://ihzdkxqijssj.us-east-1.clawcloudrun.com/) [nodepass/np123456]
+>[>点此体验<](https://dash.nodepass.eu/) [nodepass/np123456]
 > 
 > ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
 
