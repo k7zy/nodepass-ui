@@ -1,12 +1,10 @@
-name: 🐳 构建并发布Docker镜像
+name: 🐳 构建标准版 Docker 镜像
 
 on:
   push:
-    branches: [ main ]
     tags: [ 'v*.*.*' ]
-  pull_request:
     branches: [ main ]
-  workflow_dispatch:  # 支持手动触发
+  workflow_dispatch:
     inputs:
       no_cache:
         description: '禁用构建缓存'
@@ -17,6 +15,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  DOCKERFILE: Dockerfile
 
 jobs:
   docker:
@@ -34,9 +33,7 @@ jobs:
       - name: 📝 获取版本信息
         id: get_version
         run: |
-          # 从package.json获取版本号作为唯一来源
           VERSION=$(node -p "require('./package.json').version")
-          # 如果是tag触发，验证tag版本与package.json版本是否匹配
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             TAG_VERSION=${GITHUB_REF#refs/tags/v}
             if [ "$VERSION" != "$TAG_VERSION" ]; then
@@ -44,7 +41,6 @@ jobs:
               exit 1
             fi
           fi
-          # 转换仓库名为小写
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -53,7 +49,6 @@ jobs:
           echo "repo_name=$REPO_LC" >> $GITHUB_OUTPUT
           echo "📦 当前版本: $VERSION"
 
-      # 只在发布版本时设置QEMU（用于多架构构建）
       - name: 🔧 设置 QEMU
         if: startsWith(github.ref, 'refs/tags/')
         uses: docker/setup-qemu-action@v3
@@ -65,7 +60,6 @@ jobs:
             image=moby/buildkit:latest
       
       - name: 🔑 登录到容器仓库
-        # 只在main分支或发布时登录
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
@@ -79,32 +73,27 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}
           tags: |
-            # PR时使用pr-number作为标签
-            type=raw,value=pr-${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' }}
-            # main分支推送时生成latest和版本号标签
             type=raw,value=latest,enable=${{ steps.get_version.outputs.is_main == 'true' }}
-            type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ steps.get_version.outputs.is_main == 'true' }}
-            # tag发布时也生成版本号标签（确保一致性）
-            type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ steps.get_version.outputs.is_release == 'true' }}
+            type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ steps.get_version.outputs.is_main == 'true' || steps.get_version.outputs.is_release == 'true' }}
       
       - name: 🏗️ 构建和推送（使用缓存）
         if: ${{ !inputs.no_cache }}
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}  # PR不推送
+          file: ${{ env.DOCKERFILE }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=${{ steps.get_version.outputs.repo_name }}
-          # 只在发布版本时构建多架构
           platforms: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           cache-from: |
-            type=gha,scope=${{ github.workflow }}
+            type=gha,scope=standard-${{ github.workflow }}
             type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache
           cache-to: |
-            type=gha,mode=max,scope=${{ github.workflow }}
+            type=gha,mode=max,scope=standard-${{ github.workflow }}
             type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
@@ -115,6 +104,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ${{ env.DOCKERFILE }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
@@ -132,13 +122,4 @@ jobs:
           echo "📦 镜像标签:"
           echo "${{ steps.meta.outputs.tags }}" | tr '\n' '\n  '
           echo "🏗️ 构建架构: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}"
-          echo "🚫 缓存状态: ${{ inputs.no_cache && '已禁用' || '已启用' }}"
-
-      - name: 📝 创建发布说明
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          name: 🚀 Release ${{ steps.get_version.outputs.version }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true 
+          echo "🚫 缓存状态: ${{ inputs.no_cache && '已禁用' || '已启用' }}" 

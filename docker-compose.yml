@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
+      # target: production
     container_name: nodepassdash
     ports:
       - "3000:3000"  # 整合的Next.js应用 (包含SSE服务)
