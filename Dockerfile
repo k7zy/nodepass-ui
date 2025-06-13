@@ -90,23 +90,10 @@ ENV APP_VERSION=${VERSION}
 # 安装curl用于IPv6测试
 RUN apk add --no-cache curl
 
-# 添加IPv6测试脚本
-RUN echo '#!/bin/sh\n\
-echo "🌐 正在测试IPv6连接...";\n\
-if curl -6 -m 5 -s ifconfig.co > /dev/null; then\n\
-    echo "✅ IPv6连接正常 (ifconfig.co)";\n\
-elif curl -6 -m 5 -s http://ipv6.google.com > /dev/null; then\n\
-    echo "✅ IPv6连接正常 (google.com)";\n\
-elif curl -6 -m 5 -s https://test-ipv6.com > /dev/null; then\n\
-    echo "✅ IPv6连接正常 (test-ipv6.com)";\n\
-else\n\
-    echo "⚠️ 警告: 无法访问IPv6网络";\n\
-fi' > /app/check-ipv6.sh && chmod +x /app/check-ipv6.sh
 
 CMD ["sh", "-c", "\
     echo '🚀 启动NodePass生产环境 (整合SSE服务)...' && \
     echo '📦 当前版本: '${APP_VERSION} && \
-    /app/check-ipv6.sh && \
     echo '📊 运行数据库迁移...' && \
     pnpm exec prisma migrate deploy && \
     echo '🎯 启动整合生产服务...' && \
