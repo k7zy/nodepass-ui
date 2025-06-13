@@ -87,10 +87,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # 添加版本信息到环境变量
 ENV APP_VERSION=${VERSION}
 
-# 安装curl用于IPv6测试
-RUN apk add --no-cache curl
-
-
 CMD ["sh", "-c", "\
     echo '🚀 启动NodePass生产环境 (整合SSE服务)...' && \
     echo '📦 当前版本: '${APP_VERSION} && \
