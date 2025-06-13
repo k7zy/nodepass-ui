@@ -387,4 +387,4 @@ export async function changeUsername(currentUsername: string, newUsername: strin
       message: '修改用户名时发生错误'
     };
   }
-} 
+}

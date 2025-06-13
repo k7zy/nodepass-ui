@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TunnelStatus, Endpoint } from '@prisma/client';
 import { convertBigIntToNumber, formatTrafficBytes } from '@/lib/utils/traffic';
-import { fetchWithSSLSupport } from '@/lib/utils/fetch';
+import { proxyFetch } from '@/lib/utils/proxy-fetch';
 
 export async function GET() {
   try {
@@ -149,11 +149,10 @@ export async function POST(request: NextRequest) {
 
     // 调用NodePass API创建隧道实例
     try {
-      // 从端点URL解析host和port
-      const endpointUrl = new URL(endpoint.url);
+      // 构建API URL并处理IPv6地址
       const apiUrl = `${endpoint.url}${endpoint.apiPath}/instances`;
       
-      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
+      const nodepassResponse = await proxyFetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,7 +160,8 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           url: commandLine
-        })
+        }),
+        timeout: 10000 // 10秒超时
       });
 
       if (!nodepassResponse.ok) {
@@ -263,7 +263,6 @@ export async function DELETE(request: NextRequest) {
 
     // 调用NodePass API删除
     try {
-      const endpointUrl = new URL(tunnel.endpoint.url);
       const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${instanceId}`;
       
       console.log(`=== NodePass DELETE API调试信息 ===`);
@@ -274,11 +273,12 @@ export async function DELETE(request: NextRequest) {
       console.log(`API Key: ${tunnel.endpoint.apiKey ? '已设置' : '未设置'}`);
       console.log(`===============================`);
       
-      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
+      const nodepassResponse = await proxyFetch(apiUrl, {
         method: 'DELETE',
         headers: {
           'X-API-Key': tunnel.endpoint.apiKey
-        }
+        },
+        timeout: 10000 // 10秒超时
       });
 
       if (!nodepassResponse.ok) {
@@ -360,7 +360,6 @@ export async function PATCH(request: NextRequest) {
 
     // 调用NodePass API执行操作
     try {
-      const endpointUrl = new URL(tunnel.endpoint.url);
       const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${instanceId}`;
       
       console.log(`=== NodePass API调试信息 ===`);
@@ -372,7 +371,7 @@ export async function PATCH(request: NextRequest) {
       console.log(`API Key: ${tunnel.endpoint.apiKey ? '已设置' : '未设置'}`);
       console.log(`========================`);
       
-      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
+      const nodepassResponse = await proxyFetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -380,7 +379,8 @@ export async function PATCH(request: NextRequest) {
         },
         body: JSON.stringify({
           action: action
-        })
+        }),
+        timeout: 10000 // 10秒超时
       });
 
       if (!nodepassResponse.ok) {

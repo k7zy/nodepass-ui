@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
-import { validateSession, getSessionUser, changeUsername } from '@/lib/server/auth-service';
+import { validateSession, getSessionUser, changeUsername, destroySession } from '@/lib/server/auth-service';
 
 // 用户名修改请求验证schema
 const changeUsernameSchema = z.object({
@@ -14,6 +14,7 @@ const changeUsernameSchema = z.object({
 /**
  * POST - 修改用户名
  * 使用本地auth-service处理用户名修改
+ * 修改成功后会使当前会话失效，要求用户重新登录
  */
 export async function POST(request: NextRequest) {
   try {
@@ -78,10 +79,19 @@ export async function POST(request: NextRequest) {
         newUsername: newUsername
       });
 
-      return NextResponse.json({
+      // 使当前会话失效
+      await destroySession(sessionCookie.value);
+
+      // 删除客户端的会话cookie
+      const response = NextResponse.json({
         success: true,
-        message: result.message
+        message: '用户名修改成功，请重新登录',
+        requireRelogin: true
       });
+
+      response.cookies.delete('session');
+
+      return response;
     } else {
       console.log('[修改用户名API] 用户名修改失败:', {
         username: sessionUser.username,

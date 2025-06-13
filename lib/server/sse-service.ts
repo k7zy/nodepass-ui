@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import { EventEmitter } from 'events';
 import { logger } from './logger';
-import fetch from 'node-fetch';
+import { proxyFetch } from '@/lib/utils/proxy-fetch';
 import https from 'https';
+import http from 'http';
 import {
   EndpointStatus,
   EndpointStatusType,
@@ -12,6 +13,9 @@ import { SSEEventType, TunnelStatus } from '@prisma/client';
 import { getGlobalSSEManager } from './global-sse';
 import { initializeSystem, cleanupExpiredSessions } from './auth-service';
 import { Prisma } from '@prisma/client';
+import { ExtendedAgentOptions } from '../types/network';
+import dns from 'dns';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 /**
  * SSE服务 - 监听NodePass端点并转发给前端
@@ -341,7 +345,7 @@ export class SSEService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const response = await fetch(checkUrl, {
+      const response = await proxyFetch(checkUrl, {
         method: 'HEAD', // 使用HEAD请求，只检查连接性
         headers: {
           'X-API-Key': apiKey
@@ -552,103 +556,259 @@ export class SSEService {
     };
   }
 
+  /**
+   * 测试端点连接
+   */
+  public async testEndpointConnection(url: string, apiPath: string, apiKey: string): Promise<void> {
+    const testUrl = `${url}${apiPath}/events`;
+    logger.info(`[SSE-Service] 测试SSE连接: ${testUrl}`);
+
+    try {
+      // 获取系统代理设置
+      const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy;
+      const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+      const noProxy = process.env.NO_PROXY || process.env.no_proxy;
+
+      // 检查是否需要跳过代理
+      const shouldUseProxy = (() => {
+        if (!httpProxy && !httpsProxy) return false;
+        if (!noProxy) return true;
+        
+        const parsedUrl = new URL(testUrl);
+        const hostname = parsedUrl.hostname;
+        
+        // 检查是否在 NO_PROXY 列表中
+        return !noProxy.split(',').some(domain => {
+          domain = domain.trim();
+          if (!domain) return false;
+          // 支持通配符匹配
+          if (domain.startsWith('*.') && hostname.endsWith(domain.slice(2))) return true;
+          return hostname === domain;
+        });
+      })();
+
+      if (shouldUseProxy) {
+        logger.info(`[SSE-Service] 检测到系统代理配置: HTTP=${httpProxy}, HTTPS=${httpsProxy}`);
+      }
+
+      // 创建测试用的agent配置
+      const agentConfig: ExtendedAgentOptions = {
+        keepAlive: true,
+        timeout: 5000,    // 测试时使用更短的超时时间
+        family: 0,        // 启用双栈支持
+        all: true,        // 返回所有可用地址
+        rejectUnauthorized: false, // 跳过 SSL 证书验证
+        // 添加自签名证书支持
+        secureOptions: require('constants').SSL_OP_NO_TLSv1_3,
+        ciphers: 'ALL',
+        minVersion: 'TLSv1.2' as const,
+        maxVersion: 'TLSv1.2' as const
+      };
+
+      // 检查是否为HTTPS连接
+      const isHttps = testUrl.startsWith('https:');
+
+      // 创建代理 agent
+      let agent;
+      if (shouldUseProxy) {
+        const proxyUrl = isHttps ? httpsProxy : httpProxy;
+        if (proxyUrl) {
+          agent = new HttpsProxyAgent(proxyUrl, agentConfig);
+          logger.info(`[SSE-Service] 使用代理连接: ${proxyUrl}`);
+        } else {
+          agent = isHttps ? new https.Agent(agentConfig) : new http.Agent(agentConfig);
+        }
+      } else {
+        agent = isHttps ? new https.Agent(agentConfig) : new http.Agent(agentConfig);
+      }
+
+      // 处理IPv6地址格式
+      const parsedUrl = new URL(testUrl);
+      if (parsedUrl.hostname.includes(':')) {
+        // 如果是IPv6地址，确保使用方括号
+        parsedUrl.hostname = `[${parsedUrl.hostname.replace(/[\[\]]/g, '')}]`;
+        logger.info(`[SSE-Service] 检测到IPv6地址，已格式化为: ${parsedUrl.toString()}`);
+      }
+
+      // 添加DNS解析重试
+      const maxRetries = 3;
+      let lastError;
+
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+          const response = await proxyFetch(parsedUrl.toString(), {
+            method: 'GET',
+            headers: {
+              'X-API-Key': apiKey,
+              'Cache-Control': 'no-cache'
+            },
+            agent,
+            signal: controller.signal as any
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
+          }
+
+          // 测试成功
+          logger.info(`[SSE-Service] SSE连接测试成功: ${parsedUrl.toString()}`);
+          return;
+        } catch (error) {
+          lastError = error;
+          if (i < maxRetries - 1) {
+            logger.warn(`[SSE-Service] 连接重试 ${i + 1}/${maxRetries}:`, error);
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+          }
+        }
+      }
+
+      throw lastError;
+    } catch (error) {
+      logger.error('[SSE-Service] SSE连接测试失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 重置SSE服务
+   * 停止所有连接和健康检查,但不销毁实例
+   */
+  public async reset() {
+    logger.info('[SSE-Service] 开始重置SSE服务...');
+    
+    // 清理健康检查定时器
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+      logger.info('[SSE-Service] 已停止健康检查');
+    }
+    
+    // 断开所有连接
+    const disconnectPromises = Array.from(this.connections.keys()).map(endpointId => 
+      this.disconnectEndpoint(parseInt(endpointId))
+    );
+    
+    await Promise.all(disconnectPromises);
+    logger.info(`[SSE-Service] 已断开 ${disconnectPromises.length} 个端点连接`);
+    
+    // 清空连接映射
+    this.connections.clear();
+    
+    // 重置初始化标志
+    this.isInitialized = false;
+    
+    logger.info('[SSE-Service] SSE服务重置完成');
+  }
+
   // 建立 SSE 连接
   private async establishConnection(endpointId: number, connection: SSEConnection) {
     const { url, apiPath, apiKey } = connection;
     const sseUrl = `${url}${apiPath}/events`;
     logger.info(`[SSE-Service] 建立SSE连接: ${sseUrl}`);
+    
     try {
       const controller = new AbortController();
       connection.controller = controller;
-      
-      // 创建自定义的 HTTPS agent 来跳过 SSL 验证
-      const httpsAgent = new https.Agent({
-        rejectUnauthorized: false, // 跳过 SSL 证书验证
-        keepAlive: true,
-        timeout: 30000 // 30秒超时
-      });
-      
-      // 检查是否为HTTPS连接
-      const isHttps = sseUrl.startsWith('https:');
-      if (isHttps) {
-        logger.info(`[SSE-Service] 端点 ${endpointId} 使用HTTPS连接，已跳过SSL证书验证`);
-      }
-      
-      const response = await fetch(sseUrl, {
-        method: 'GET',
-        headers: {
-          'X-API-Key': apiKey,
-          'Cache-Control': 'no-cache'
-        },
-        signal: controller.signal as any, // 使用类型断言解决类型不兼容问题
-        agent: isHttps ? httpsAgent : undefined // 只有HTTPS才使用自定义agent
-      });
-      
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP错误: ${response.status}`);
-      }
-      
-      // 使用 Node.js 流处理 SSE 数据
-      let buffer = '';
-      
-      const processStream = () => {
-        if (!response.body) return;
-        
-        response.body.on('data', (chunk: Buffer) => {
-          try {
-            buffer += chunk.toString();
-            const lines = buffer.split('\n\n');
-            buffer = lines.pop() || '';
-            
-            for (const line of lines) {
-              if (line.trim() === '') continue;
-              
-              const eventMatch = line.match(/^event: (.+)$/m);
-              const dataMatch = line.match(/^data: (.+)$/m);
-              
-              if (eventMatch && dataMatch) {
-                const eventData = JSON.parse(dataMatch[1]);
-                connection.lastEventTime = Date.now();
-                connection.isHealthy = true;
+
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const response = await proxyFetch(sseUrl, {
+            headers: {
+              'Accept': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+              'X-API-Key': apiKey
+            },
+            signal: controller.signal as any,
+            timeout: 30000
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          if (!response.body) {
+            throw new Error('Response body is null');
+          }
+
+          const processStream = () => {
+            let buffer = '';
+
+            response.body.on('data', (chunk: Buffer) => {
+              try {
+                buffer += chunk.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
                 
-                // Debug输出到控制台
-                logger.debug(`[SSE-Service] 端点 ${endpointId} 收到SSE事件: `, JSON.stringify(eventData));
-                
-                // 异步处理并存储SSE事件到数据库
-                this.processSSEEvent(Number(endpointId), eventData).catch((error: unknown) => {
-                  logger.error(`[SSE-Service] 处理端点 ${endpointId} SSE事件失败:`, error);
-                });
-                
-                // 发出事件通知
-                this.eventEmitter.emit(`endpoint:${endpointId}`, eventData);
+                for (const line of lines) {
+                  if (line.trim() === '') continue;
+                  
+                  const eventMatch = line.match(/^event: (.+)$/m);
+                  const dataMatch = line.match(/^data: (.+)$/m);
+                  
+                  if (eventMatch && dataMatch) {
+                    const eventData = JSON.parse(dataMatch[1]);
+                    connection.lastEventTime = Date.now();
+                    connection.isHealthy = true;
+                    
+                    // Debug输出到控制台
+                    logger.debug(`[SSE-Service] 端点 ${endpointId} 收到SSE事件: `, JSON.stringify(eventData));
+                    
+                    // 异步处理并存储SSE事件到数据库
+                    this.processSSEEvent(Number(endpointId), eventData).catch((error: unknown) => {
+                      logger.error(`[SSE-Service] 处理端点 ${endpointId} SSE事件失败:`, error);
+                    });
+                    
+                    // 发出事件通知
+                    this.eventEmitter.emit(`endpoint:${endpointId}`, eventData);
+                  }
+                }
+              } catch (error) {
+                logger.error(`[SSE-Service] 处理端点 ${endpointId} 的数据块失败`, error);
               }
-            }
-          } catch (error) {
-            logger.error(`[SSE-Service] 处理端点 ${endpointId} 的数据块失败`, error);
+            });
+            
+            response.body.on('end', () => {
+              logger.info(`[SSE-Service] 端点 ${endpointId} 连接已关闭`);
+              this.handleConnectionClosed(endpointId, connection);
+            });
+            
+            response.body.on('error', (error: Error) => {
+              if (error.name === 'AbortError') {
+                logger.info(`[SSE-Service] 端点 ${endpointId} 连接已中止`);
+              } else {
+                logger.error(`[SSE-Service] 端点 ${endpointId} 流错误`, error);
+                this.handleConnectionError(endpointId, connection, error);
+              }
+            });
+          };
+          
+          processStream();
+          return;
+
+        } catch (error) {
+          lastError = error as Error;
+          if (i < maxRetries - 1) {
+            logger.warn(`[SSE-Service] 连接重试 ${i + 1}/${maxRetries}:`, error);
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
           }
-        });
-        
-        response.body.on('end', () => {
-          logger.info(`[SSE-Service] 端点 ${endpointId} 连接已关闭`);
-          this.handleConnectionClosed(endpointId, connection);
-        });
-        
-        response.body.on('error', (error: Error) => {
-          if (error.name === 'AbortError') {
-            logger.info(`[SSE-Service] 端点 ${endpointId} 连接已中止`);
-          } else {
-            logger.error(`[SSE-Service] 端点 ${endpointId} 流错误`, error);
-            this.handleConnectionError(endpointId, connection, error);
-          }
-        });
-      };
-      
-      processStream();
+        }
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
       
     } catch (error) {
       logger.error(`[SSE-Service] 建立端点 ${endpointId} 的 SSE 连接失败`, error);
-      // 不在这里调用 handleConnectionError，因为这会导致重复的重试逻辑
-      // 让 connectEndpoint 来处理连接失败的情况
       throw error;
     }
   }
@@ -1461,94 +1621,6 @@ export class SSEService {
     if (callbacks.updated) this.eventEmitter.off('tunnel:updated', callbacks.updated);
     if (callbacks.deleted) this.eventEmitter.off('tunnel:deleted', callbacks.deleted);
     if (callbacks.shutdown) this.eventEmitter.off('endpoint:shutdown', callbacks.shutdown);
-  }
-
-  /**
-   * 测试端点连接
-   * @param url - 端点URL
-   * @param apiPath - API路径
-   * @param apiKey - API密钥
-   * @returns Promise<void>
-   */
-  public async testEndpointConnection(url: string, apiPath: string, apiKey: string): Promise<void> {
-    const sseUrl = `${url}${apiPath}/events`;
-    logger.info(`[SSE-Service] 测试SSE连接: ${sseUrl}`);
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时
-
-      // 创建自定义的 HTTPS agent 来跳过 SSL 验证
-      const httpsAgent = new https.Agent({
-        rejectUnauthorized: false,
-        keepAlive: true,
-        timeout: 3000 // 3秒超时
-      });
-
-      // 检查是否为HTTPS连接
-      const isHttps = sseUrl.startsWith('https:');
-      if (isHttps) {
-        logger.info(`[SSE-Service] 使用HTTPS连接，已跳过SSL证书验证`);
-      }
-
-      const response = await fetch(sseUrl, {
-        method: 'GET',
-        headers: {
-          'X-API-Key': apiKey,
-          'Cache-Control': 'no-cache'
-        },
-        signal: controller.signal as any,
-        agent: isHttps ? httpsAgent : undefined
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP错误: ${response.status}`);
-      }
-
-      // 如果连接成功，立即关闭它
-      controller.abort();
-      logger.info(`[SSE-Service] SSE连接测试成功: ${sseUrl}`);
-
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('连接超时，请检查端点是否可访问');
-      }
-      logger.error(`[SSE-Service] SSE连接测试失败:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * 重置SSE服务
-   * 停止所有连接和健康检查,但不销毁实例
-   */
-  public async reset() {
-    logger.info('[SSE-Service] 开始重置SSE服务...');
-    
-    // 清理健康检查定时器
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-      logger.info('[SSE-Service] 已停止健康检查');
-    }
-    
-    // 断开所有连接
-    const disconnectPromises = Array.from(this.connections.keys()).map(endpointId => 
-      this.disconnectEndpoint(parseInt(endpointId))
-    );
-    
-    await Promise.all(disconnectPromises);
-    logger.info(`[SSE-Service] 已断开 ${disconnectPromises.length} 个端点连接`);
-    
-    // 清空连接映射
-    this.connections.clear();
-    
-    // 重置初始化标志
-    this.isInitialized = false;
-    
-    logger.info('[SSE-Service] SSE服务重置完成');
   }
 }
 

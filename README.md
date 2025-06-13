@@ -1,6 +1,6 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-1.4.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.4.5-blue.svg)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
@@ -89,15 +89,11 @@ cd NodePassDash
 # 2. 安装依赖
 pnpm install
 
-# 3. 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，设置数据库连接等配置
-
-# 4. 初始化数据库
+# 3. 初始化数据库
 pnpm db:generate
 pnpm db:migrate
 
-# 5. 启动开发服务
+# 4. 启动开发服务
 pnpm dev
 ```
 

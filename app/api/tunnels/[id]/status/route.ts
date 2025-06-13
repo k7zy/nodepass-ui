@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TunnelStatus } from "@prisma/client";
 import { convertBigIntToNumber } from "@/lib/utils";
-import { fetchWithSSLSupport } from '@/lib/utils/fetch';
+import { proxyFetch } from '@/lib/utils/proxy-fetch';
+import { logger } from '@/lib/server/logger';
 
 // PATCH /api/tunnels/[id]/status - 更新隧道状态（启动/停止/重启）
 export async function PATCH(
@@ -55,15 +56,18 @@ export async function PATCH(
     try {
       // 构建 NodePass API 请求 URL
       const apiUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${tunnel.instanceId}`;
+      
+      logger.info(`[API] 正在调用 NodePass API: ${apiUrl} - 操作: ${action}`);
 
-      // 调用 NodePass API
-      const nodepassResponse = await fetchWithSSLSupport(apiUrl, {
+      // 调用 NodePass API，使用 proxyFetch 支持系统代理和双栈 IP
+      const nodepassResponse = await proxyFetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': tunnel.endpoint.apiKey
         },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action }),
+        timeout: 10000 // 10秒超时
       });
 
       if (!nodepassResponse.ok) {
@@ -72,30 +76,7 @@ export async function PATCH(
       }
       
       const nodepassData = await nodepassResponse.json();
-      /*
-      // API 调用成功，更新隧道状态
-      let newStatus: TunnelStatus;
-      switch (nodepassData.status) {
-        case 'running':
-          newStatus = TunnelStatus.running;
-          break;
-        case 'stopped':
-          newStatus = TunnelStatus.stopped;
-          break;
-        default:
-          newStatus = TunnelStatus.error;
-      }
 
-      // 更新隧道状态
-      console.log("此处更新新状态为",newStatus,action)
-      const updatedTunnel = await prisma.tunnel.update({
-        where: { id: tunnelId },
-        data: { 
-          status: newStatus,
-          lastEventTime: new Date() // 添加事件时间
-        }
-      });
-      */
       // 记录成功日志
       await prisma.tunnelOperationLog.create({
         data: {
@@ -115,7 +96,12 @@ export async function PATCH(
       });
 
     } catch (apiError: any) {
-      console.error('调用 NodePass API 失败:', apiError);
+      logger.error('调用 NodePass API 失败:', {
+        error: apiError.message,
+        tunnelId,
+        action,
+        url: tunnel.endpoint.url
+      });
 
       // 记录失败日志
       await prisma.tunnelOperationLog.create({
@@ -137,7 +123,7 @@ export async function PATCH(
     }
 
   } catch (error) {
-    console.error("更新隧道状态失败:", error);
+    logger.error("更新隧道状态失败:", error);
     return NextResponse.json(
       { error: "更新隧道状态失败" },
       { status: 500 }
