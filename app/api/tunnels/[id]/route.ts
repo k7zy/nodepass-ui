@@ -6,6 +6,7 @@ import { fetchWithSSLSupport } from '@/lib/utils/fetch';
 import { logger } from '@/lib/server/logger';
 import { z } from 'zod';
 import { proxyFetch } from '@/lib/utils/proxy-fetch';
+import { Prisma } from '@prisma/client';
 
 // 验证请求体的schema
 const updateTunnelSchema = z.object({
@@ -201,7 +202,7 @@ export async function DELETE(
 
     // 先删除远程隧道
     try {
-      const deleteUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/tunnels/${tunnel.instanceId}`;
+      const deleteUrl = `${tunnel.endpoint.url}${tunnel.endpoint.apiPath}/instances/${tunnel.instanceId}`;
       const response = await proxyFetch(deleteUrl, {
         method: 'DELETE',
         headers: {
@@ -217,16 +218,29 @@ export async function DELETE(
       logger.error('[API] 删除远程隧道失败:', error);
     }
 
-    // 删除本地隧道记录
-    await prisma.tunnel.delete({
-      where: { id: tunnelId }
-    });
+    try {
+      // 删除本地隧道记录
+      await prisma.tunnel.delete({
+        where: { id: tunnelId }
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          logger.error(`[API] 删除隧道失败: 隧道记录不存在 (ID: ${tunnelId})`);
+          return NextResponse.json(
+            { error: '隧道记录不存在' },
+            { status: 404 }
+          );
+        }
+      }
+      throw error; // 重新抛出其他类型的错误
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error('[API] 删除隧道失败:', error);
     return NextResponse.json(
-      { error: '删除隧道失败' },
+      { error: '删除隧道失败，请检查服务器日志' },
       { status: 500 }
     );
   }

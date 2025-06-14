@@ -745,14 +745,17 @@ export class SSEService {
             response.body.on('data', (chunk: Buffer) => {
               try {
                 buffer += chunk.toString();
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
+                // 使用\n\n分割完整的事件块
+                const events = buffer.split('\n\n');
+                // 保留最后一个可能不完整的事件块
+                buffer = events.pop() || '';
                 
-                for (const line of lines) {
-                  if (line.trim() === '') continue;
+                for (const event of events) {
+                  if (event.trim() === '') continue;
                   
-                  const eventMatch = line.match(/^event: (.+)$/m);
-                  const dataMatch = line.match(/^data: (.+)$/m);
+                  // 在完整的事件块中查找event和data
+                  const eventMatch = event.match(/^event: (.+)$/m);
+                  const dataMatch = event.match(/^data: (.+)$/m);
                   
                   if (eventMatch && dataMatch) {
                     const eventData = JSON.parse(dataMatch[1]);

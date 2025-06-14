@@ -69,7 +69,7 @@ systemctl daemon-reload && systemctl restart docker
 方式一：先手动创建ipv6网络法
 ```bash
 # 1. 创建ipv6网络 (如果未创建)
-docker network create --ipv6 --subnet 2001:db8::/64 ip6net
+docker network create --ipv6 --subnet 2001:db8::/64 ipv6net
 # 2. 下载 Docker Compose v6版文件并重命名
 wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.releasev6.yml -O docker-compose.yml
 # 3. 启动服务
