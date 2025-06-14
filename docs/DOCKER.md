@@ -35,6 +35,7 @@ docker logs nodepassdash | grep -A 6 "系统初始化完成"
 
 ### 方式一：使用预构建镜像（推荐）
 
+默认情况下，使用ipv4:
 ```bash
 # 1. 下载 Docker Compose 文件并重命名
 wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.release.yml -O docker-compose.yml
@@ -46,7 +47,51 @@ mkdir -p logs public && chmod 777 logs public
 docker compose up -d
 ```
 
+当发现ipv6不可用时，参考如下：
+
+前提条件：
+请先参考Docker文档[Use IPv6 networking](https://docs.docker.com/engine/daemon/ipv6/)进行配置ipv6网络
+```json
+// 修改/etc/docker/daemon.json
+{
+  "ipv6": true,
+  "fixed-cidr-v6": "fd00::/80",
+  "experimental": true,
+  "ip6tables": true
+}
+// 重启docker服务
+systemctl daemon-reload && systemctl restart docker
+```
+当配置完docker支持ipv6网络后，把原来compose文件内的`network_mode: "host"`去掉再重新尝试启动
+
+如果仍然发现v6无效，再尝试如下方法：
+
+方式一：先手动创建ipv6网络法
+```bash
+# 1. 创建ipv6网络 (如果未创建)
+docker network create --ipv6 --subnet 2001:db8::/64 ip6net
+# 2. 下载 Docker Compose v6版文件并重命名
+wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.releasev6.yml -O docker-compose.yml
+# 3. 启动服务
+docker compose up -d
+```
+方式二：使用docker-compose启动时自动创建ipv6网络
+```bash
+# 1. 下载 Docker Compose v6版文件并重命名
+wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.releasev6-create.yml -O docker-compose.yml
+# 2. 启动服务
+docker compose up -d
+```
 ### 方式二：使用 Docker 命令启动
+- 最简单一条指令
+```bash
+docker run -itd \
+  --name nodepassdash \
+  -p 3000:3000 \
+  ghcr.io/nodepassproject/nodepassdash:latest
+```
+
+- 如果要挂载日志和数据目录，可以使用如下命令
 
 ```bash
 # 1. 拉取镜像
@@ -59,6 +104,56 @@ mkdir -p logs public && chmod 777 logs public
 docker run -d \
   --name nodepassdash \
   -p 3000:3000 \
+  -v ./logs:/app/logs \
+  -v ./public:/app/public \
+  ghcr.io/nodepassproject/nodepassdash:latest
+```
+
+当发现ipv6不可用时，参考如下：
+
+前提条件：
+请先参考Docker文档[Use IPv6 networking](https://docs.docker.com/engine/daemon/ipv6/)进行配置ipv6网络
+```json
+// 修改/etc/docker/daemon.json
+{
+  "ipv6": true,
+  "fixed-cidr-v6": "fd00::/80",
+  "experimental": true,
+  "ip6tables": true
+}
+// 重启docker服务
+systemctl daemon-reload && systemctl restart docker
+```
+当配置完docker支持ipv6网络后，再按照原来的指令启动仍然发现v6无效，再尝试如下方法：
+
+方式一：尝试启动时将网络模式更换为host
+```bash
+docker run -d \
+  --name nodepassdash \
+  --network host \
+  -v ./logs:/app/logs \
+  -v ./public:/app/public \
+  ghcr.io/nodepassproject/nodepassdash:latest
+```
+方式二：指定ipv6网络
+```bash
+docker run -d \
+  --name nodepassdash \
+  --network="bridge" \
+  --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+  --sysctl net.ipv6.conf.default.disable_ipv6=0 \
+  -v ./logs:/app/logs \
+  -v ./public:/app/public \
+  ghcr.io/nodepassproject/nodepassdash:latest
+```
+方式三：手动创建ipv6网络
+```
+# 1. 创建ipv6网络 (如果未创建)
+docker network create --ipv6 --subnet 2001:db8::/64 ipv6net
+# 2. 启动容器
+docker run -d \
+  --name nodepassdash \
+  --network ipv6net \
   -v ./logs:/app/logs \
   -v ./public:/app/public \
   ghcr.io/nodepassproject/nodepassdash:latest

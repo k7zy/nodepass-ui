@@ -12,28 +12,6 @@ import { initializeSSEService } from '@/lib/server/sse-service';
 
 const execAsync = promisify(exec);
 
-// IPv6连接检查函数
-async function checkIPv6Connectivity() {
-  const sites = [
-    { url: 'ifconfig.co', name: 'ifconfig.co' },
-    { url: 'ipv6.google.com', name: 'Google' },
-    { url: 'test-ipv6.com', name: 'test-ipv6.com' }
-  ];
-
-  for (const site of sites) {
-    try {
-      await execAsync(`curl -6 -m 5 -s ${site.url}`);
-      logger.info(`[IPv6] ✅ IPv6连接正常 (${site.name})`);
-      return true;
-    } catch (err) {
-      logger.debug(`[IPv6] 无法连接到 ${site.name}`);
-    }
-  }
-  
-  logger.warn('[IPv6] ⚠️ 警告: 无法访问IPv6网络');
-  return false;
-}
-
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -59,10 +37,6 @@ app.prepare().then(() => {
   })
   .listen(port, async () => {
     logger.info(`[Server] ✅ 服务运行在 http://${hostname}:${port}`);
-    
-    // 检查IPv6连接
-    logger.info('[IPv6] 正在检查IPv6连接...');
-    await checkIPv6Connectivity();
     
     // 初始化 SSE 服务
     logger.info('[Server] 正在初始化 SSE 监听服务...');

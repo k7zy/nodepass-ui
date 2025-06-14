@@ -81,6 +81,9 @@ RUN pnpm exec prisma generate
 
 EXPOSE 3000
 
+# 确保容器内支持IPv6
+RUN echo "ipv6" >> /etc/modules
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
@@ -88,10 +91,16 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENV APP_VERSION=${VERSION}
 
 CMD ["sh", "-c", "\
-    echo '🚀 启动NodePass生产环境 (整合SSE服务)...' && \
+    echo '🚀 启动NodePass生产环境...' && \
     echo '📦 当前版本: '${APP_VERSION} && \
+    echo '🔍 检查网络配置...' && \
+    ip -6 addr show && \
+    sysctl net.ipv6.conf.all.disable_ipv6 && \
+    sysctl net.ipv6.conf.default.disable_ipv6 && \
+    echo '🔗 IPv6网络连接测试...' && \
+    ping6 -c 1 -w 2 google.com || echo 'Ping6失败' && \
     echo '📊 运行数据库迁移...' && \
     pnpm exec prisma migrate deploy && \
-    echo '🎯 启动整合生产服务...' && \
+    echo '🎯 启动生产服务...' && \
     NODE_ENV=production pnpm start \
 "] 
