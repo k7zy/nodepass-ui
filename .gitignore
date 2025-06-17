@@ -73,7 +73,7 @@ bin/
 *.out
 *.test
 *.so
-
+web/
 # IDE
 .idea/
 .vscode/
