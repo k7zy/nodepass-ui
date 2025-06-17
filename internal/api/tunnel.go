@@ -329,8 +329,8 @@ func (h *TunnelHandler) HandleGetTunnelLogs(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 格式化为前端需要的字段
-	var resp []map[string]interface{}
+	// 格式化为前端需要的字段；若无数据也返回空数组而非 null
+	resp := make([]map[string]interface{}, 0)
 	for _, l := range logs {
 		statusType := "warning"
 		if l.Status == "success" {

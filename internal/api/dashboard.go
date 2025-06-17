@@ -90,5 +90,9 @@ func (h *DashboardHandler) HandleTrafficTrend(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if trend == nil {
+		trend = make([]dashboard.TrafficTrendItem, 0)
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "data": trend, "count": len(trend)})
 }
