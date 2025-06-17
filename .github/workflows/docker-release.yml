@@ -42,14 +42,28 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Prepare metadata
+        id: meta
+        run: |
+          REPO_LC=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "repo=$REPO_LC" >> $GITHUB_OUTPUT
+          echo "version=${{ steps.vars.outputs.version }}" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image (release)
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.vars.outputs.version }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}
+            ghcr.io/${{ steps.meta.outputs.repo }}:latest
           build-args: |
             VERSION=${{ steps.vars.outputs.version }}
-          platforms: linux/amd64,linux/arm64 
+          platforms: linux/amd64,linux/arm64
+
+      - name: Output version info
+        run: |
+          echo "🏷 Version: ${{ steps.vars.outputs.version }}"
+          echo "📦 Image Tags:"
+          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}"
+          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:latest" 

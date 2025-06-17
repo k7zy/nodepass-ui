@@ -37,10 +37,16 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            # branch build, use short sha
             VERSION=${GITHUB_SHA::7}-beta
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Prepare metadata
+        id: meta
+        run: |
+          REPO_LC=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "repo=$REPO_LC" >> $GITHUB_OUTPUT
+          echo "version=${{ steps.vars.outputs.version }}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (beta)
         uses: docker/build-push-action@v5
@@ -48,6 +54,15 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.vars.outputs.version }}
+            ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}
+            ghcr.io/${{ steps.meta.outputs.repo }}:beta
           build-args: |
-            VERSION=${{ steps.vars.outputs.version }} 
+            VERSION=${{ steps.vars.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+
+      - name: Output version info
+        run: |
+          echo "🏷 Version: ${{ steps.vars.outputs.version }}"
+          echo "📦 Image Tags:"
+          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}"
+          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:beta" 
