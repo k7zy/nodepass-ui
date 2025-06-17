@@ -19,7 +19,7 @@ const navigationItems = [
   },
   {
     href: "/tunnels",
-    label: "隧道管理", 
+    label: "实例管理", 
     icon: "solar:transmission-bold",
   },
   {
