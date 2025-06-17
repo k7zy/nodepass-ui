@@ -54,9 +54,13 @@ export default function LoginPage() {
       console.log('📋 登录响应数据', result);
 
       if (response.ok) {
-        console.log('✅ 登录成功，设置用户状态');
-        // 登录成功后直接设置用户状态，避免额外的 API 调用
-        setUserDirectly({ username: formData.username });
+        console.log('✅ 登录成功，设置用户状态并持久化');
+        // 登录成功后直接设置用户状态并持久化
+        const loginUser = { username: formData.username };
+        setUserDirectly(loginUser);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('nodepass.user', JSON.stringify(loginUser));
+        }
         
         console.log('🚀 重定向到仪表盘');
         router.push('/dashboard');

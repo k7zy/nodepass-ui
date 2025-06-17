@@ -41,8 +41,8 @@ export const useTunnelActions = () => {
           
           // 更新状态 (使用tunnelId用于前端状态管理)
           if (tunnelId) {
-            const newStatus = data.tunnel.status === 'running';
-            onStatusChange?.(tunnelId, newStatus);
+            // const newStatus = data.tunnel.status === 'running';
+            onStatusChange?.(tunnelId, !isRunning);
           }
 
           // 显示成功提示
@@ -96,7 +96,7 @@ export const useTunnelActions = () => {
           
           // 更新状态 (使用tunnelId用于前端状态管理)
           if (tunnelId) {
-            const newStatus = data.tunnel.status === 'running';
+            // const newStatus = data.tunnel.status === 'running';
             onStatusChange?.(tunnelId, true);
           }
 

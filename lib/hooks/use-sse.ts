@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { buildClientSSEUrl, SSE_ENDPOINTS } from '@/lib/config/sse-config';
+import { buildApiUrl } from '@/lib/utils';
 
 interface SSEOptions {
   onMessage?: (event: any) => void;
@@ -12,7 +12,7 @@ export function useGlobalSSE(options: SSEOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const url = buildClientSSEUrl(SSE_ENDPOINTS.global);
+    const url = buildApiUrl('/api/sse/global');
     console.log(`[前端SSE] 尝试建立SSE连接`, { url });
 
     const eventSource = new EventSource(url);
@@ -74,7 +74,7 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
       return;
     }
 
-    const url = buildClientSSEUrl(SSE_ENDPOINTS.tunnel(instanceId));
+    const url = buildApiUrl(`/api/sse/tunnel/${instanceId}`);
     console.log(`[前端SSE] 尝试建立隧道SSE连接`, { url, instanceId });
 
     const eventSource = new EventSource(url);
@@ -122,6 +122,53 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
       }
     };
   }, [instanceId]);
+
+  return eventSourceRef.current;
+}
+
+// 用于连接 Go 后端的 SSE
+export function useSSE(endpoint: string, options: SSEOptions) {
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    // 构建 SSE URL
+    const url = buildApiUrl(`/api/sse${endpoint}`);
+
+    // 创建 EventSource 实例
+    const eventSource = new EventSource(url);
+
+    // 保存引用
+    eventSourceRef.current = eventSource;
+
+    // 连接成功回调
+    eventSource.onopen = () => {
+      console.log('[SSE] 连接成功');
+      options.onConnected?.();
+    };
+
+    // 消息处理
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        options.onMessage?.(data);
+      } catch (error) {
+        console.error('[SSE] 解析消息失败:', error);
+      }
+    };
+
+    // 错误处理
+    eventSource.onerror = (error) => {
+      console.error('[SSE] 连接错误:', error);
+      options.onError?.(error);
+    };
+
+    // 清理函数
+    return () => {
+      console.log('[SSE] 关闭连接');
+      eventSource.close();
+      eventSourceRef.current = null;
+    };
+  }, [endpoint, options]);
 
   return eventSourceRef.current;
 } 

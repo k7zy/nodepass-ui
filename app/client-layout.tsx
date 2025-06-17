@@ -12,7 +12,7 @@ import pkg from '../package.json';
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLoginPage = pathname === '/login';
+  const isLoginPage = pathname === '/login' || pathname === '/login/';
 
   return (
     <AuthProvider>

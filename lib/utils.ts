@@ -7,31 +7,38 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * 构建内部 API 的完整 URL
- * 在云端部署时使用环境变量配置的基础URL，本地开发使用相对路径
+ * 构建 API URL
+ * @param path API 路径
+ * @returns 完整的 API URL
  */
 export function buildApiUrl(path: string): string {
-  // 如果已经是完整URL，直接返回
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  
-  // 确保路径以 / 开头
-  if (!path.startsWith('/')) {
-    path = '/' + path;
-  }
-  
-  // 在浏览器环境中
+  const envBase =
+    (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE) ||
+    (typeof process !== 'undefined' && process.env.API_BASE);
+
+  // ---------- 浏览器环境 ----------
   if (typeof window !== 'undefined') {
-    // const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    // if (baseUrl) {
-    //   return `${baseUrl}${path}`;
-    // }
-    // 如果没有配置基础URL，使用当前域名
+    if (process.env.NODE_ENV === 'development') {
+      // 开发模式统一返回相对路径，交由 next.config.js rewrites 代理
+      return path;
+    }
+
+    // 生产模式：如果配置了环境变量，使用绝对地址，否则同源
+    if (envBase) {
+      const normalizedBase = envBase.replace(/\/+$/, '');
+      return `${normalizedBase}${path}`;
+    }
+
     return `${window.location.origin}${path}`;
   }
-  
-  // 在服务器环境中，直接返回路径（由Next.js处理）
+
+  // ---------- Node.js / Server 端 ----------
+  if (envBase) {
+    const normalizedBase = envBase.replace(/\/+$/, '');
+    return `${normalizedBase}${path}`;
+  }
+
+  // 在静态导出或服务器端渲染阶段保持原样
   return path;
 }
 

@@ -91,7 +91,7 @@ export default function AddEndpointModal({
     try {
       const { baseUrl, apiPath } = parseUrl(formData.url);
       
-      // 使用新的 SSE 测试端点
+      // 使用新的 SSE 测试主控
       const response = await fetch('/api/sse/test', {
         method: 'POST',
         headers: {

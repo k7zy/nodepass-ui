@@ -25,8 +25,9 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
-import { EndpointStatus } from '@prisma/client';
 import { addToast } from "@heroui/toast";
+
+type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 
 interface ApiEndpoint {
   id: number;
@@ -121,7 +122,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
 
         {/* 中间：过滤器组 */}
         <Flex className="gap-2 flex-wrap sm:flex-nowrap">
-          {/* 端点过滤器 */}
+          {/* 主控过滤器 */}
           <Dropdown>
             <DropdownTrigger>
               <Button 
@@ -161,7 +162,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                   <Flex align="center" justify="between" className="w-full">
                     {item.key === "all" ? (
                       <>
-                        <span>所有端点</span>
+                        <span>所有主控</span>
                         <span className="text-xs text-default-400">
                         </span>
                       </>
@@ -170,7 +171,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                         <Flex align="center" className="gap-2 min-w-0 flex-1">
                           <span 
                             className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                              item.status === EndpointStatus.ONLINE ? 'bg-success' : 'bg-danger'
+                              item.status === 'ONLINE' ? 'bg-success' : 'bg-danger'
                             }`} 
                           />
                           <span className="truncate">{item.label}</span>

@@ -28,11 +28,13 @@ import React, { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useRouter } from "next/navigation";
-import { EndpointStatus } from '@prisma/client';
 import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { buildApiUrl } from '@/lib/utils';
+
+// Prisma 已移除，定义本地 EndpointStatus 枚举
+type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 
 // 统计数据类型
 interface TunnelStats {
@@ -51,7 +53,7 @@ interface TunnelInstance {
   };
 }
 
-// 端点类型
+// 主控类型
 interface Endpoint {
   id: number;
   name: string;
@@ -163,22 +165,22 @@ export default function DashboardPage() {
     }
   };
 
-  // 获取端点数据
+  // 获取主控数据
   const fetchEndpoints = async () => {
     try {
       const response = await fetch(buildApiUrl('/api/endpoints/simple'));
-      if (!response.ok) throw new Error('获取端点数据失败');
+      if (!response.ok) throw new Error('获取主控数据失败');
       const data: Endpoint[] = await response.json();
       setEndpoints(data);
     } catch (error) {
-      console.error('获取端点数据失败:', error);
+      console.error('获取主控数据失败:', error);
     }
   };
 
   // 获取操作日志数据
   const fetchOperationLogs = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/tunnel-logs?limit=50'));
+      const response = await fetch(buildApiUrl('/api/dashboard/logs?limit=50'));
       if (!response.ok) throw new Error('获取操作日志失败');
       const data: OperationLog[] = await response.json();
       setOperationLogs(data);
@@ -226,7 +228,7 @@ export default function DashboardPage() {
         console.log('[仪表盘] 收到实例更新事件:', data);
         // 刷新实例统计数据
         fetchTunnelStats();
-        // 如果是创建或删除事件，也刷新端点数据
+        // 如果是创建或删除事件，也刷新主控数据
         if (data.type === 'create' || data.type === 'delete') {
           fetchEndpoints();
         }
@@ -430,7 +432,7 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
 
-        {/* API 端点列表 - 在移动端独占一行，桌面端占1列 */}
+        {/* API 主控列表 - 在移动端独占一行，桌面端占1列 */}
         <Card className="p-2 min-h-[300px] lg:h-[400px]">
           <CardHeader className="font-bold text-sm md:text-base">API 主控</CardHeader>
           <Divider />
@@ -453,7 +455,7 @@ export default function DashboardPage() {
                 </div>
               ) : endpoints.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-default-500 text-xs md:text-sm">暂无端点数据</p>
+                  <p className="text-default-500 text-xs md:text-sm">暂无主控数据</p>
                 </div>
               ) : (
                 endpoints.map((endpoint) => (
@@ -463,7 +465,7 @@ export default function DashboardPage() {
                         <span 
                           className={cn(
                             "w-2 h-2 rounded-full inline-block flex-shrink-0",
-                            endpoint.status === EndpointStatus.ONLINE ? "bg-green-500" : "bg-rose-500"
+                            endpoint.status === 'ONLINE' ? "bg-green-500" : "bg-rose-500"
                           )}
                         />
                         <h4 className="font-medium text-xs md:text-sm truncate">{endpoint.name}</h4>

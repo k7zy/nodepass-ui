@@ -19,7 +19,7 @@ import {
   useDisclosure,
   Input
 } from "@heroui/react";
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -35,6 +35,7 @@ import { Box, Flex } from "@/components";
 import { TunnelToolBox } from "./components/toolbox";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
+import { buildApiUrl } from '@/lib/utils';
 
 // 定义实例类型
 interface Tunnel {
@@ -45,7 +46,9 @@ interface Tunnel {
   endpoint: string;
   endpointId: string;
   tunnelAddress: string;
+  tunnelPort: string;
   targetAddress: string;
+  targetPort: string;
   status: {
     type: "success" | "danger" | "warning";
     text: string;
@@ -53,50 +56,134 @@ interface Tunnel {
   avatar: string;
 }
 
+interface Endpoint {
+  id: string;
+  name: string;
+}
+
 export default function TunnelsPage() {
   const router = useRouter();
-  const [filterValue, setFilterValue] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("all");
-  const [endpointFilter, setEndpointFilter] = React.useState("all");
-  const [rowsPerPage, setRowsPerPage] = React.useState(10);
-  const [page, setPage] = React.useState(1);
-  const [deleteModalTunnel, setDeleteModalTunnel] = React.useState<Tunnel | null>(null);
+  const [filterValue, setFilterValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [endpointFilter, setEndpointFilter] = useState("all");
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [page, setPage] = useState(1);
+  const [deleteModalTunnel, setDeleteModalTunnel] = useState<Tunnel | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   
   // 添加编辑名称相关的状态
-  const [editModalTunnel, setEditModalTunnel] = React.useState<Tunnel | null>(null);
-  const [newTunnelName, setNewTunnelName] = React.useState("");
-  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
-  const [isEditLoading, setIsEditLoading] = React.useState(false);
+  const [editModalTunnel, setEditModalTunnel] = useState<Tunnel | null>(null);
+  const [newTunnelName, setNewTunnelName] = useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
 
   // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
 
   // 实例数据状态，支持动态更新
-  const [tunnels, setTunnels] = React.useState<Tunnel[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
 
   // 获取实例列表
   const fetchTunnels = async () => {
     try {
       setLoading(true);
-      setError(null);
-      const response = await fetch('/api/tunnels');
+      const response = await fetch(buildApiUrl('/api/tunnels'));
       if (!response.ok) throw new Error('获取实例列表失败');
       const data = await response.json();
       setTunnels(data);
     } catch (error) {
       console.error('获取实例列表失败:', error);
-      const errorMessage = error instanceof Error ? error.message : "未知错误";
-      setError(errorMessage);
       addToast({
-        title: "获取实例列表失败",
-        description: errorMessage,
-        color: "danger",
+        title: '错误',
+        description: '获取实例列表失败',
+        color: 'danger'
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 获取主控列表
+  const fetchEndpoints = async () => {
+    try {
+      const response = await fetch(buildApiUrl('/api/endpoints'));
+      if (!response.ok) throw new Error('获取主控列表失败');
+      const data = await response.json();
+      setEndpoints(data);
+    } catch (error) {
+      console.error('获取主控列表失败:', error);
+      addToast({
+        title: '错误',
+        description: '获取主控列表失败',
+        color: 'danger'
+      });
+    }
+  };
+
+  // 处理实例操作
+  const handleTunnelAction = async (tunnelId: string, action: string) => {
+    try {
+      const response = await fetch(buildApiUrl(`/api/tunnels/${tunnelId}/action`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '操作失败');
+      }
+
+      // 刷新实例列表
+      await fetchTunnels();
+
+      addToast({
+        title: '成功',
+        description: '操作成功',
+        color: 'success'
+      });
+    } catch (error) {
+      console.error('实例操作失败:', error);
+      addToast({
+        title: '错误',
+        description: error instanceof Error ? error.message : '操作失败',
+        color: 'danger'
+      });
+    }
+  };
+
+  // 处理删除实例
+  const handleDelete = async (tunnelId: string) => {
+    try {
+      const response = await fetch(buildApiUrl(`/api/tunnels/${tunnelId}`), {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '删除失败');
+      }
+
+      // 刷新实例列表
+      await fetchTunnels();
+
+      addToast({
+        title: '成功',
+        description: '删除成功',
+        color: 'success'
+      });
+    } catch (error) {
+      console.error('删除实例失败:', error);
+      addToast({
+        title: '错误',
+        description: error instanceof Error ? error.message : '删除失败',
+        color: 'danger'
+      });
     }
   };
 
@@ -109,7 +196,7 @@ export default function TunnelsPage() {
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
     { key: "endpoint", label: "主控" },
-    { key: "tunnelAddress", label: "隧道地址" },
+    { key: "tunnelAddress", label: "实例地址" },
     { key: "targetAddress", label: "目标地址" },
     { key: "status", label: "状态" },
     { key: "actions", label: "操作" },
@@ -328,13 +415,13 @@ export default function TunnelsPage() {
       case "tunnelAddress":
         return (
           <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={tunnel.tunnelAddress}>
-            {tunnel.tunnelAddress}
+            {tunnel.tunnelAddress}:{tunnel.tunnelPort}
           </Box>
         );
       case "targetAddress":
         return (
           <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={tunnel.targetAddress}>
-            {tunnel.targetAddress}
+            {tunnel.targetAddress}:{tunnel.targetPort}
           </Box>
         );
       case "status":
@@ -358,7 +445,7 @@ export default function TunnelsPage() {
               variant="light"
               size="sm"
               color="primary"
-              onClick={() => router.push(`/tunnels/${tunnel.id}`)}
+              onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
               startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
             />
             <Button
@@ -526,7 +613,7 @@ export default function TunnelsPage() {
                         </Chip>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-default-500 w-12 flex-shrink-0">隧道:</span>
+                        <span className="text-xs text-default-500 w-12 flex-shrink-0">实例:</span>
                         <span className="text-xs font-mono text-default-600 truncate">{tunnel.tunnelAddress}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -542,7 +629,7 @@ export default function TunnelsPage() {
                         variant="light"
                         size="sm"
                         color="primary"
-                        onClick={() => router.push(`/tunnels/${tunnel.id}`)}
+                        onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
                         startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
                       />
                       <Button

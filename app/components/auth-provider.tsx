@@ -36,6 +36,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [lastCheckTime, setLastCheckTime] = useState<number>(0);
   const router = useRouter();
 
+  // 初始挂载时，尝试从 localStorage 读取用户信息，提供"乐观"登录体验，防止刷新立刻跳登录页
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('nodepass.user');
+        if (stored) {
+          setUser(JSON.parse(stored) as User);
+        }
+      } catch (e) {
+        console.error('读取本地用户失败', e);
+      }
+    }
+  }, []);
+
   // 验证当前用户会话
   const checkAuth = async (forceCheck = false) => {
     console.log('🔍 开始检查身份验证状态');
@@ -57,10 +71,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.ok) {
         const userData = await response.json();
         console.log('✅ 身份验证成功', userData);
-        setUser(userData.user);
+
+        // 兼容两种返回格式：{ user: { username: "" } } 或 { username: "" }
+        let extractedUser: User | null = null;
+        if (userData.user && userData.user.username) {
+          extractedUser = userData.user as User;
+        } else if (userData.username) {
+          extractedUser = { username: userData.username } as User;
+        }
+
+        if (extractedUser) {
+          setUser(extractedUser);
+
+          // 同步到 localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('nodepass.user', JSON.stringify(extractedUser));
+          }
+        } else {
+          // 格式异常视为未登录
+          setUser(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('nodepass.user');
+          }
+        }
       } else {
         console.log('❌ 身份验证失败，清除用户状态');
         setUser(null);
+
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('nodepass.user');
+        }
       }
       setLastCheckTime(now);
     } catch (error) {
@@ -85,6 +125,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
       router.push('/login');
       router.refresh();
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('nodepass.user');
+      }
     }
   };
 

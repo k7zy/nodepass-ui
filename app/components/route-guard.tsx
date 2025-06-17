@@ -13,7 +13,19 @@ interface RouteGuardProps {
 }
 
 // 公开路由列表（不需要身份验证）
-const PUBLIC_ROUTES = ['/login'];
+// 由于 next.config.js 中设置了 `trailingSlash: true`，导出后路径可能变成 `/login/`
+// 为兼容两种情况，统一在比较前去除末尾斜杠，再进行匹配
+const RAW_PUBLIC_ROUTES = ['/login'];
+
+/**
+ * 规范化路径，去除末尾斜杠（根路径 `/` 除外）
+ */
+function normalizePath(path: string): string {
+  if (path === '/') return path;
+  return path.replace(/\/+$/, '');
+}
+
+const PUBLIC_ROUTES = RAW_PUBLIC_ROUTES.map(normalizePath);
 
 export function RouteGuard({ children }: RouteGuardProps) {
   const { user, loading } = useAuth();
@@ -29,7 +41,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
     });
     
     if (!loading) {
-      const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
+      const isPublicRoute = PUBLIC_ROUTES.includes(normalizePath(pathname));
       
       console.log('🛡️ RouteGuard 路由检查', {
         isPublicRoute,
@@ -70,7 +82,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
   }
 
   // 检查是否应该显示内容
-  const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
+  const isPublicRoute = PUBLIC_ROUTES.includes(normalizePath(pathname));
   const shouldShowContent = (user && !isPublicRoute) || (!user && isPublicRoute);
 
   if (!shouldShowContent) {

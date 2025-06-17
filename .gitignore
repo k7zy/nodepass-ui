@@ -46,3 +46,37 @@ SSE_INTEGRATION.md
 *.sqlite
 /public/*.db
 /public/*.sqlite
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Next.js build
+.next/
+.dist/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+bin/
+*.exe
+*.exe~
+*.out
+*.test
+*.so
+
+# IDE
+.idea/
+.vscode/
+
+# Docker
+nodepass-release.*

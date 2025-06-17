@@ -43,10 +43,18 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
-import { Endpoint, EndpointStatus } from '@prisma/client';
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl } from '@/lib/utils';
+// 本地定义 EndpointStatus 枚举，后端通过 API 返回字符串
+type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
+// 后端返回的 Endpoint 基础结构
+interface EndpointBase {
+  id: number;
+  name: string;
+  url: string;
+  status: EndpointStatus;
+}
 
-interface EndpointWithRelations extends Endpoint {
+interface EndpointWithRelations extends EndpointBase {
   tunnelInstances: Array<{
     id: string;
     status: string;
@@ -93,15 +101,13 @@ export default function EndpointsPage() {
       if (!response.ok) throw new Error('获取主控列表失败');
       const data = await response.json();
       setEndpoints(data);
-      
-      return data;
     } catch (error) {
+      console.error('获取主控列表失败:', error);
       addToast({
-        title: "获取主控列表失败",
-        description: "请检查网络连接后重试",
-        color: "danger",
+        title: '错误',
+        description: '获取主控列表失败',
+        color: 'danger'
       });
-      return [];
     } finally {
       setLoading(false);
     }
@@ -154,29 +160,29 @@ export default function EndpointsPage() {
     if (!deleteModalEndpoint) return;
 
     try {
-      const response = await fetch(buildApiUrl('/api/endpoints'), {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: Number(deleteModalEndpoint.id) }),
+      const response = await fetch(buildApiUrl(`/api/endpoints/${deleteModalEndpoint.id}`), {
+        method: 'DELETE'
       });
 
-      if (!response.ok) throw new Error('删除主控失败');
-
-      addToast({
-        title: "主控删除成功",
-        description: `${deleteModalEndpoint.name} 已从主控列表中删除`,
-        color: "success",
-      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '删除失败');
+      }
 
       // 刷新主控列表
-      fetchEndpoints();
-    } catch (error) {
+      await fetchEndpoints();
+
       addToast({
-        title: "删除主控失败",
-        description: "请稍后重试",
-        color: "danger",
+        title: '成功',
+        description: '删除成功',
+        color: 'success'
+      });
+    } catch (error) {
+      console.error('删除主控失败:', error);
+      addToast({
+        title: '错误',
+        description: error instanceof Error ? error.message : '删除失败',
+        color: 'danger'
       });
     }
     onDeleteOpenChange();
@@ -315,7 +321,7 @@ export default function EndpointsPage() {
     return {
       status: endpoint.status,
       tunnelCount: endpoint.tunnelCount || 0,
-      canRetry: endpoint.status === EndpointStatus.FAIL
+      canRetry: endpoint.status === 'FAIL'
     };
   };
 
@@ -363,21 +369,21 @@ export default function EndpointsPage() {
                   size="sm"
                   variant="flat"
                   color={
-                    realTimeData.status === EndpointStatus.ONLINE ? 'success' : 
-                    realTimeData.status === EndpointStatus.FAIL ? 'danger' : 'warning'
+                    realTimeData.status === 'ONLINE' ? 'success' : 
+                    realTimeData.status === 'FAIL' ? 'danger' : 'warning'
                   }
                   startContent={
                     <FontAwesomeIcon 
                       icon={
-                        realTimeData.status === EndpointStatus.ONLINE ? faLink : 
-                        realTimeData.status === EndpointStatus.FAIL ? faPlugCircleXmark : faTimesCircle
+                        realTimeData.status === 'ONLINE' ? faLink : 
+                        realTimeData.status === 'FAIL' ? faPlugCircleXmark : faTimesCircle
                       } 
                       className="text-xs"
                     />
                   }
                 >
-                  {realTimeData.status === EndpointStatus.ONLINE ? '在线' : 
-                   realTimeData.status === EndpointStatus.FAIL ? '异常' : '离线'}
+                  {realTimeData.status === 'ONLINE' ? '在线' : 
+                   realTimeData.status === 'FAIL' ? '异常' : '离线'}
                 </Chip>
               </div>
               
@@ -389,7 +395,7 @@ export default function EndpointsPage() {
               </div>
 
               {/* 显示失败状态提示 */}
-              {realTimeData.status === EndpointStatus.FAIL && (
+              {realTimeData.status === 'FAIL' && (
                 <div className="p-2 bg-danger-50 rounded-lg">
                   <p className="text-tiny text-danger-600">主控连接失败，已停止重试</p>
                 </div>
@@ -426,8 +432,8 @@ export default function EndpointsPage() {
           <FontAwesomeIcon 
               icon={faCheck} 
               className={
-                realTimeData.status === EndpointStatus.ONLINE ? "text-success-600" : 
-                realTimeData.status === EndpointStatus.FAIL ? "text-danger-600" : "text-warning-600"
+                realTimeData.status === 'ONLINE' ? "text-success-600" : 
+                realTimeData.status === 'FAIL' ? "text-danger-600" : "text-warning-600"
               } 
             />
           <p className="text-small text-default-500">
@@ -438,13 +444,13 @@ export default function EndpointsPage() {
           <div
             className={cn(
               "inline-flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors",
-              realTimeData.status === EndpointStatus.ONLINE 
+              realTimeData.status === 'ONLINE' 
                 ? "text-warning hover:bg-warning/10" 
                 : "text-success hover:bg-success/10"
             )}
             onClick={(e) => {
               e.stopPropagation();
-              if (realTimeData.status === EndpointStatus.ONLINE) {
+              if (realTimeData.status === 'ONLINE') {
                 handleDisconnect(endpoint.id);
               } else {
                 handleConnect(endpoint.id);
@@ -452,8 +458,8 @@ export default function EndpointsPage() {
             }}
           >
             <FontAwesomeIcon 
-              icon={realTimeData.status === EndpointStatus.ONLINE ? faPlugCircleXmark : faPlug} 
-              className={realTimeData.status === EndpointStatus.ONLINE ? "text-warning" : "text-success"}
+              icon={realTimeData.status === 'ONLINE' ? faPlugCircleXmark : faPlug} 
+              className={realTimeData.status === 'ONLINE' ? "text-warning" : "text-success"}
             />
           </div>
           <div
@@ -479,13 +485,12 @@ export default function EndpointsPage() {
     if (!selectedEndpoint?.id) return;
 
     try {
-      const response = await fetch(buildApiUrl('/api/endpoints'), {
-        method: 'PATCH',
+      const response = await fetch(buildApiUrl(`/api/endpoints/${selectedEndpoint.id}`), {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: Number(selectedEndpoint.id),
           name: newName,
           action: 'rename'
         }),
@@ -509,6 +514,40 @@ export default function EndpointsPage() {
         title: "重命名失败",
         description: error instanceof Error ? error.message : "请稍后重试",
         color: "danger",
+      });
+    }
+  };
+
+  // 处理编辑主控
+  const handleEdit = async (endpointId: string, data: EndpointFormData) => {
+    try {
+      const response = await fetch(buildApiUrl(`/api/endpoints/${endpointId}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '更新失败');
+      }
+
+      // 刷新主控列表
+      await fetchEndpoints();
+
+      addToast({
+        title: '成功',
+        description: '更新成功',
+        color: 'success'
+      });
+    } catch (error) {
+      console.error('更新主控失败:', error);
+      addToast({
+        title: '错误',
+        description: error instanceof Error ? error.message : '更新失败',
+        color: 'danger'
       });
     }
   };
@@ -582,12 +621,12 @@ export default function EndpointsPage() {
                     radius="full"
                     variant="flat"
                     color={
-                      realTimeData.status === EndpointStatus.ONLINE ? "success" : 
-                      realTimeData.status === EndpointStatus.FAIL ? "danger" : "warning"
+                      realTimeData.status === 'ONLINE' ? "success" : 
+                      realTimeData.status === 'FAIL' ? "danger" : "warning"
                     }
                   >
-                    {realTimeData.status === EndpointStatus.ONLINE ? "在线" : 
-                     realTimeData.status === EndpointStatus.FAIL ? "异常" : "离线"}
+                    {realTimeData.status === 'ONLINE' ? "在线" : 
+                     realTimeData.status === 'FAIL' ? "异常" : "离线"}
                   </Chip>
                 </div>
 

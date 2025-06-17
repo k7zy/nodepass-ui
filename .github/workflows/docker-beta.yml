@@ -1,130 +1,53 @@
-name: ⚡️ 构建测试版 Docker 镜像
+name: Docker CI (beta)
 
 on:
   push:
-    tags: [ 'v*.*.*-beta.*' ]
-  workflow_dispatch:
-    inputs:
-      no_cache:
-        description: '禁用构建缓存'
-        required: false
-        default: false
-        type: boolean
-      beta_version:
-        description: '测试版本号 (例如: beta.1)'
-        required: true
-        type: string
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-  DOCKERFILE: Dockerfile
+    branches:
+      - "*-beta"
+    tags:
+      - "v*.*.*.beta*"
 
 jobs:
-  docker:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: 📦 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: 📝 获取版本信息
-        id: get_version
-        run: |
-          BASE_VERSION=$(node -p "require('./package.json').version")
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            # 从 tag 获取完整版本号（包含 beta 后缀）
-            FULL_VERSION=${GITHUB_REF#refs/tags/v}
-            # 检查基础版本号是否匹配
-            if [[ ! $FULL_VERSION =~ ^$BASE_VERSION-beta ]]; then
-              echo "❌ 错误: Tag版本与package.json版本不匹配"
-              exit 1
-            fi
-            BETA_VERSION=$FULL_VERSION
-          else
-            # 从工作流输入获取 beta 版本
-            BETA_VERSION="$BASE_VERSION-${{ inputs.beta_version }}"
-          fi
-          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "VERSION=$BETA_VERSION" >> $GITHUB_ENV
-          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
-          echo "repo_name=$REPO_LC" >> $GITHUB_OUTPUT
-          echo "📦 当前版本: $BETA_VERSION"
-
-      - name: 🔧 设置 QEMU
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      
-      - name: 🔧 设置 Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:latest
-      
-      - name: 🔑 登录到容器仓库
+
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 📋 提取镜像元数据
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}
-          tags: |
-            type=raw,value=${{ steps.get_version.outputs.version }}
-            type=raw,value=beta
-      
-      - name: 🏗️ 构建和推送（使用缓存）
-        if: ${{ !inputs.no_cache }}
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ env.DOCKERFILE }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=${{ steps.get_version.outputs.repo_name }}
-          platforms: linux/amd64,linux/arm64
-          cache-from: |
-            type=gha,scope=beta-${{ github.workflow }}
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:beta-buildcache
-          cache-to: |
-            type=gha,mode=max,scope=beta-${{ github.workflow }}
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:beta-buildcache,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-            VERSION=${{ steps.get_version.outputs.version }}
 
-      - name: 🏗️ 构建和推送（无缓存）
-        if: ${{ inputs.no_cache }}
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ env.DOCKERFILE }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=${{ steps.get_version.outputs.repo_name }}
-          platforms: linux/amd64,linux/arm64
-          no-cache: true
-          build-args: |
-            VERSION=${{ steps.get_version.outputs.version }}
-
-      - name: 📢 输出版本信息
+      - name: Extract version
+        id: vars
         run: |
-          echo "🏷️ 版本: ${{ steps.get_version.outputs.version }}"
-          echo "📦 镜像标签:"
-          echo "${{ steps.meta.outputs.tags }}" | tr '\n' '\n  '
-          echo "🏗️ 构建架构: linux/amd64,linux/arm64"
-          echo "🚫 缓存状态: ${{ inputs.no_cache && '已禁用' || '已启用' }}" 
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            # branch build, use short sha
+            VERSION=${GITHUB_SHA::7}-beta
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image (beta)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.vars.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.vars.outputs.version }} 
