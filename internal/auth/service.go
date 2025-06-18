@@ -1,11 +1,11 @@
 package auth
 
 import (
+	log "NodePassDash/internal/log"
 	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math/big"
 	"os"
 	"sync"
@@ -219,7 +219,7 @@ func (s *Service) InitializeSystem() (string, string, error) {
 	}
 
 	// 日志输出
-	slog.Info("系统初始化完成，管理员用户名: %s", username)
+	log.Info("系统初始化完成", "username", username)
 
 	// 重要: 输出初始密码
 	fmt.Println("================================")

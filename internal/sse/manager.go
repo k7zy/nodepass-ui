@@ -1,73 +1,20 @@
 package sse
 
 import (
-	"bufio"
+	log "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
 	"context"
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"net"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"NodePassDash/internal/models"
-
 	"github.com/r3labs/sse/v2"
 )
-
-// simpleHandler 实现自定义输出格式: 2025/06/15 11:09:19 INFO msg k=v ...
-type simpleHandler struct {
-	level slog.Level
-	attrs []slog.Attr
-}
-
-func (h *simpleHandler) Enabled(_ context.Context, lvl slog.Level) bool {
-	return lvl >= h.level
-}
-
-func (h *simpleHandler) Handle(_ context.Context, r slog.Record) error {
-	if r.Level < h.level {
-		return nil
-	}
-
-	// 时间、级别、消息
-	ts := r.Time.Format("2006-01-02 15:04:05")
-	level := strings.ToUpper(r.Level.String())
-	msg := r.Message
-
-	// 合并属性
-	var b strings.Builder
-	writeAttr := func(a slog.Attr) {
-		fmt.Fprintf(&b, " %s=%v", a.Key, a.Value.Any())
-	}
-	for _, a := range h.attrs {
-		writeAttr(a)
-	}
-	r.Attrs(func(a slog.Attr) bool {
-		writeAttr(a)
-		return true
-	})
-
-	fmt.Fprintf(os.Stdout, "%s %s %s%s\n", ts, level, msg, b.String())
-	return nil
-}
-
-func (h *simpleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newH := *h
-	newH.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
-	return &newH
-}
-
-func (h *simpleHandler) WithGroup(name string) slog.Handler { return h }
-
-func newSimpleHandler(level slog.Level) slog.Handler { return &simpleHandler{level: level} }
 
 // Manager SSE连接管理器
 type Manager struct {
@@ -77,6 +24,15 @@ type Manager struct {
 
 	// 连接管理
 	connections map[int64]*EndpointConnection
+
+	// 事件处理 worker pool
+	jobs chan eventJob // 投递待解析/处理的原始 SSE 事件
+}
+
+// eventJob 表示一个待处理的 SSE 消息
+type eventJob struct {
+	endpointID int64
+	payload    string
 }
 
 // NewManager 创建SSE管理器
@@ -85,16 +41,17 @@ func NewManager(db *sql.DB, service *Service) *Manager {
 		service:     service,
 		db:          db,
 		connections: make(map[int64]*EndpointConnection),
+		jobs:        make(chan eventJob, 1024), // 缓冲可按需调整
 	}
 }
 
 // InitializeSystem 初始化系统
 func (m *Manager) InitializeSystem() error {
-	slog.Info("开始初始化系统")
+	log.Infof("开始初始化系统")
 	// 统计需要重连的端点数量（过滤掉已明确失败的端点）
 	var total int
 	if err := m.db.QueryRow(`SELECT COUNT(*) FROM "Endpoint" WHERE status != 'FAIL'`).Scan(&total); err == nil {
-		slog.Info("需要重连的端点数量", "total", total)
+		log.Infof("扫描到重连端点数量: %d", total)
 	}
 
 	// 获取所有端点
@@ -117,12 +74,12 @@ func (m *Manager) InitializeSystem() error {
 			APIKey  string
 		}
 		if err := rows.Scan(&endpoint.ID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
-			slog.Error("扫描端点数据失败", "err", err)
+			log.Error("扫描端点数据失败", "err", err)
 			continue
 		}
 
 		if err := m.ConnectEndpoint(endpoint.ID, endpoint.URL, endpoint.APIPath, endpoint.APIKey); err != nil {
-			slog.Error("连接端点失败", "endpointID", endpoint.ID, "err", err)
+			log.Errorf("[API.%d]连接失败%v", endpoint.ID, err)
 		}
 	}
 
@@ -131,13 +88,13 @@ func (m *Manager) InitializeSystem() error {
 
 // ConnectEndpoint 连接端点SSE
 func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string) error {
-	slog.Info("尝试连接端点", "endpointID", endpointID, "url", url)
+	log.Infof("[API.%d]尝试连接->%s", endpointID, url)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// 如果已存在连接，先关闭
 	if conn, exists := m.connections[endpointID]; exists {
-		slog.Info("已存在连接，先关闭", "endpointID", endpointID)
+		log.Infof("[API.%d]已存在连接，先关闭", endpointID)
 		conn.Cancel()
 		delete(m.connections, endpointID)
 	}
@@ -165,11 +122,9 @@ func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string)
 	}
 
 	m.connections[endpointID] = conn
-	slog.Info("已创建连接对象，准备启动监听", "endpointID", endpointID)
 
 	// 启动SSE监听
 	go m.listenSSE(ctx, conn)
-	slog.Info("已启动 SSE 监听协程", "endpointID", endpointID)
 
 	// 立即标记端点为 ONLINE（监听协程会负责后续状态更新）
 	m.markEndpointOnline(endpointID)
@@ -183,17 +138,17 @@ func (m *Manager) DisconnectEndpoint(endpointID int64) {
 	defer m.mu.Unlock()
 
 	if conn, exists := m.connections[endpointID]; exists {
-		slog.Info("正在断开 SSE 连接", "endpointID", endpointID)
+		log.Infof("[API.%d]正在断开连接", endpointID)
 		conn.Cancel()
 		delete(m.connections, endpointID)
-		slog.Info("SSE 连接已断开", "endpointID", endpointID)
+		log.Infof("[API.%d]连接已断开", endpointID)
 	}
 }
 
 // listenSSE 使用 r3labs/sse 监听端点
 func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	sseURL := fmt.Sprintf("%s%s/events", conn.URL, conn.APIPath)
-	slog.Info("开始监听 SSE (r3labs)", "endpointID", conn.EndpointID, "url", sseURL)
+	log.Infof("[API.%d]开始监听SSE", conn.EndpointID)
 
 	client := sse.NewClient(sseURL)
 	client.Headers["X-API-Key"] = conn.APIKey
@@ -203,12 +158,12 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	}
 
 	// 使用默认 ReconnectStrategy（指数退避），不限重试次数
-	events := make(chan *sse.Event, 16)
+	events := make(chan *sse.Event)
 
 	// 在独立 goroutine 中订阅；SubscribeChanRawWithContext 会阻塞直至 ctx.Done()
 	go func() {
 		if err := client.SubscribeChanRawWithContext(ctx, events); err != nil {
-			slog.Error("SSE 订阅错误", "endpointID", conn.EndpointID, "err", err)
+			log.Errorf("[API.%d]SSE订阅失败 %v", conn.EndpointID, err)
 		}
 	}()
 
@@ -217,239 +172,26 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 		case <-ctx.Done():
 			client.Unsubscribe(events)
 			return
-		case ev, ok := <-events:
-			if !ok {
-				slog.Warn("SSE 事件通道已关闭", "endpointID", conn.EndpointID)
-				return
-			}
-			if ev == nil {
-				continue
-			}
+		// case ev, ok := <-events:
+		case ev := <-events:
+			// if !ok {
+			// 	log.Warnf("[API.%d]SSE事件通道已关闭", conn.EndpointID)
+			// 	return
+			// }
+			// if ev == nil {
+			// 	continue
+			// }
+			log.Debugf("[API.%d]消息: %s", conn.EndpointID, ev.Data)
 
-			payload := strings.TrimSpace(string(ev.Data))
-			if payload == "" {
-				continue
-			}
-
-			var event struct {
-				Type      string          `json:"type"`
-				Time      interface{}     `json:"time"`
-				Logs      interface{}     `json:"logs"`
-				Instance  json.RawMessage `json:"instance"`
-				Instances json.RawMessage `json:"instances"`
-			}
-
-			if err := json.Unmarshal([]byte(payload), &event); err != nil {
-				slog.Warn("解码 SSE JSON 失败", "endpointID", conn.EndpointID, "err", err)
-				continue
-			}
-
-			var logsStr string
-			if event.Logs != nil {
-				if s, ok := event.Logs.(string); ok {
-					logsStr = s
-				} else {
-					logsStr = fmt.Sprintf("%v", event.Logs)
-				}
-			}
-
-			switch event.Type {
-			case "initial":
-				if err := m.handleInitialEvent(conn.EndpointID, event.Instance, logsStr); err != nil {
-					slog.Error("处理 initial 事件失败", "endpointID", conn.EndpointID, "err", err)
-				}
-			case "create", "update", "delete", "log":
-				if err := m.handleInstanceEvent(conn.EndpointID, event.Type, event.Instance, logsStr); err != nil {
-					slog.Error("处理实例事件失败", "endpointID", conn.EndpointID, "err", err)
-				}
+			// 投递到全局 worker pool 异步处理
+			select {
+			case m.jobs <- eventJob{endpointID: conn.EndpointID, payload: string(ev.Data)}:
+			default:
+				// 如果队列已满，记录告警，避免阻塞 r3labs 读取协程
+				log.Warnf("[API.%d]事件处理队列已满，丢弃消息", conn.EndpointID)
 			}
 		}
 	}
-}
-
-// handleSSEStream 处理SSE流
-func (m *Manager) handleSSEStream(ctx context.Context, conn *EndpointConnection, resp *http.Response) error {
-	defer resp.Body.Close()
-
-	reader := bufio.NewReader(resp.Body)
-	var buffer strings.Builder
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-
-		chunk, err := reader.ReadString('\n')
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return fmt.Errorf("server closed connection")
-			}
-			return fmt.Errorf("read error: %v", err)
-		}
-
-		// 统一换行符，防止 CRLF 造成分隔符匹配失败
-		chunk = strings.ReplaceAll(chunk, "\r\n", "\n")
-		buffer.WriteString(chunk)
-
-		dataStr := buffer.String()
-		// 同样替换已有内容中的 CRLF，以防在上一次循环留下的 \r 字符
-		dataStr = strings.ReplaceAll(dataStr, "\r\n", "\n")
-
-		parts := strings.Split(dataStr, "\n\n")
-
-		// 最后一个块可能是未完整的
-		if !strings.HasSuffix(dataStr, "\n\n") {
-			buffer.Reset()
-			buffer.WriteString(parts[len(parts)-1])
-			parts = parts[:len(parts)-1]
-		} else {
-			buffer.Reset()
-		}
-
-		for _, rawBlock := range parts {
-			rawBlock = strings.TrimSpace(rawBlock)
-			if rawBlock == "" {
-				continue
-			}
-
-			// 拼接所有 data: 行
-			var payloadBuilder strings.Builder
-			for _, line := range strings.Split(rawBlock, "\n") {
-				if strings.HasPrefix(line, "data:") {
-					payloadBuilder.WriteString(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-				}
-			}
-
-			payload := payloadBuilder.String()
-			if payload == "" {
-				continue
-			}
-
-			var event struct {
-				Type      string          `json:"type"`
-				Time      interface{}     `json:"time"`
-				Logs      interface{}     `json:"logs"`
-				Instance  json.RawMessage `json:"instance"`
-				Instances json.RawMessage `json:"instances"`
-			}
-
-			if err := json.Unmarshal([]byte(payload), &event); err != nil {
-				slog.Warn("解码 SSE JSON 失败", "endpointID", conn.EndpointID, "err", err)
-				continue
-			}
-			if event.Type == "log" {
-				slog.Debug("收到 SSE log事件", "endpointID", conn.EndpointID)
-			} else {
-				slog.Debug("收到 SSE 事件", "endpointID", conn.EndpointID, "payload", payload)
-			}
-
-			// 解析 logs 字段为字符串
-			var logsStr string
-			if event.Logs != nil {
-				if s, ok := event.Logs.(string); ok {
-					logsStr = s
-				} else {
-					logsStr = fmt.Sprintf("%v", event.Logs)
-				}
-			}
-
-			switch event.Type {
-			case "initial":
-				raw := event.Instance
-				if err := m.handleInitialEvent(conn.EndpointID, raw, logsStr); err != nil {
-					slog.Error("处理 initial 事件失败", "endpointID", conn.EndpointID, "err", err)
-				}
-			case "create", "update", "delete", "log":
-				if err := m.handleInstanceEvent(conn.EndpointID, event.Type, event.Instance, logsStr); err != nil {
-					slog.Error("处理实例事件失败", "endpointID", conn.EndpointID, "err", err)
-				}
-			}
-		}
-	}
-}
-
-// handleInitialEvent 处理 initial 事件（批量实例）
-func (m *Manager) handleInitialEvent(endpointID int64, instancesData json.RawMessage, logs string) error {
-	// 定义与 JSON 对应的实例结构
-	type instPayload struct {
-		ID     string `json:"id"`
-		Type   string `json:"type"`
-		Status string `json:"status"`
-		URL    string `json:"url"`
-		TCPRx  int64  `json:"tcprx"`
-		TCPTx  int64  `json:"tcptx"`
-		UDPRx  int64  `json:"udprx"`
-		UDPTx  int64  `json:"udptx"`
-	}
-
-	var instances []instPayload
-	if err := json.Unmarshal(instancesData, &instances); err != nil {
-		var single instPayload
-		if err2 := json.Unmarshal(instancesData, &single); err2 != nil {
-			return fmt.Errorf("解析实例数据失败: %v", err)
-		}
-		instances = []instPayload{single}
-	}
-
-	for _, inst := range instances {
-		event := models.EndpointSSE{
-			EventType:    models.SSEEventTypeInitial,
-			PushType:     "initial",
-			EventTime:    time.Now(),
-			EndpointID:   endpointID,
-			InstanceID:   inst.ID,
-			InstanceType: &inst.Type,
-			Status:       &inst.Status,
-			URL:          &inst.URL,
-			TCPRx:        inst.TCPRx,
-			TCPTx:        inst.TCPTx,
-			UDPRx:        inst.UDPRx,
-			UDPTx:        inst.UDPTx,
-			Logs:         &logs,
-		}
-		if err := m.service.ProcessEvent(endpointID, event); err != nil {
-			slog.Error("处理实例初始事件失败", "endpointID", endpointID, "instanceID", inst.ID, "err", err)
-		}
-	}
-	return nil
-}
-
-// handleInstanceEvent 处理 create/update/delete/log 单实例事件
-func (m *Manager) handleInstanceEvent(endpointID int64, eventType string, instanceData json.RawMessage, logs string) error {
-	var inst struct {
-		ID     string `json:"id"`
-		Type   string `json:"type"`
-		Status string `json:"status"`
-		URL    string `json:"url"`
-		TCPRx  int64  `json:"tcprx"`
-		TCPTx  int64  `json:"tcptx"`
-		UDPRx  int64  `json:"udprx"`
-		UDPTx  int64  `json:"udptx"`
-	}
-	if err := json.Unmarshal(instanceData, &inst); err != nil {
-		return fmt.Errorf("解析实例数据失败: %v", err)
-	}
-	event := models.EndpointSSE{
-		EventType:    models.SSEEventType(eventType),
-		PushType:     eventType,
-		EventTime:    time.Now(),
-		EndpointID:   endpointID,
-		InstanceID:   inst.ID,
-		InstanceType: &inst.Type,
-		Status:       &inst.Status,
-		URL:          &inst.URL,
-		TCPRx:        inst.TCPRx,
-		TCPTx:        inst.TCPTx,
-		UDPRx:        inst.UDPRx,
-		UDPTx:        inst.UDPTx,
-		Logs:         &logs,
-	}
-	if err := m.service.ProcessEvent(endpointID, event); err != nil {
-		return err
-	}
-	return nil
 }
 
 // Close 关闭所有 SSE 连接
@@ -464,18 +206,111 @@ func (m *Manager) Close() {
 
 // markEndpointFail 更新端点状态为 FAIL
 func (m *Manager) markEndpointFail(endpointID int64) {
-	if _, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'FAIL', updatedAt = CURRENT_TIMESTAMP WHERE id = ?`, endpointID); err != nil {
-		slog.Error("更新端点状态为 FAIL 失败", "endpointID", endpointID, "err", err)
+	// 更新端点状态为 FAIL，避免重复写
+	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'FAIL', updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
+	if err != nil {
+		// 更新失败直接返回
+		log.Errorf("[API.%d]更新状态为 FAIL 失败 %v", endpointID, err)
+		return
+	}
+
+	// 仅当确实修改了行时再打印成功日志
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[API.%d]更新状态为 FAIL", endpointID)
 	}
 }
 
 // markEndpointOnline 更新端点状态为 ONLINE
 func (m *Manager) markEndpointOnline(endpointID int64) {
-	if _, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'ONLINE', updatedAt = CURRENT_TIMESTAMP WHERE id = ?`, endpointID); err != nil {
-		slog.Error("更新端点状态为 ONLINE 失败", "endpointID", endpointID, "err", err)
+	// 尝试更新状态为 ONLINE
+	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'ONLINE', updatedAt = CURRENT_TIMESTAMP WHERE id = ? and status != 'ONLINE'`, endpointID)
+	if err != nil {
+		// 更新失败，记录错误并返回
+		log.Errorf("[API.%d]更新状态为 ONLINE 失败 %v", endpointID, err)
+		return
+	}
+
+	// 更新成功才输出成功日志
+	// 仅当确实修改了行时再打印成功日志
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[API.%d]更新状态为 ONLINE", endpointID)
 	}
 }
 
-func init() {
-	slog.SetDefault(slog.New(newSimpleHandler(slog.LevelDebug)))
+// StartWorkers 启动固定数量的后台 worker 处理事件
+func (m *Manager) StartWorkers(n int) {
+	if n <= 0 {
+		n = 4 // 默认 4 个
+	}
+	for i := 0; i < n; i++ {
+		go m.workerLoop()
+	}
+}
+
+// workerLoop 持续从 m.jobs 获取事件并处理
+func (m *Manager) workerLoop() {
+	for job := range m.jobs {
+		m.processPayload(job.endpointID, job.payload)
+	}
+}
+
+// processPayload 解析 JSON 并调用 service.ProcessEvent
+func (m *Manager) processPayload(endpointID int64, payload string) {
+	var event struct {
+		Type      string          `json:"type"`
+		Time      interface{}     `json:"time"`
+		Logs      interface{}     `json:"logs"`
+		Instance  json.RawMessage `json:"instance"`
+		Instances json.RawMessage `json:"instances"`
+	}
+
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		log.Errorf("[API.%d]解码 SSE JSON 失败 %v", endpointID, err)
+		return
+	}
+
+	var logsStr string
+	if event.Logs != nil {
+		if s, ok := event.Logs.(string); ok {
+			logsStr = s
+		} else {
+			logsStr = fmt.Sprintf("%v", event.Logs)
+		}
+	}
+
+	// 处理 create / update / delete / log 单实例事件
+	var inst struct {
+		ID     string `json:"id"`
+		Type   string `json:"type"`
+		Status string `json:"status"`
+		URL    string `json:"url"`
+		TCPRx  int64  `json:"tcprx"`
+		TCPTx  int64  `json:"tcptx"`
+		UDPRx  int64  `json:"udprx"`
+		UDPTx  int64  `json:"udptx"`
+	}
+	if err := json.Unmarshal(event.Instance, &inst); err != nil {
+		log.Errorf("[API.%d]解析实例数据失败 %v", endpointID, err)
+		return
+	}
+
+	evt := models.EndpointSSE{
+		EventType:    models.SSEEventType(event.Type),
+		PushType:     event.Type,
+		EventTime:    time.Now(),
+		EndpointID:   endpointID,
+		InstanceID:   inst.ID,
+		InstanceType: &inst.Type,
+		Status:       &inst.Status,
+		URL:          &inst.URL,
+		TCPRx:        inst.TCPRx,
+		TCPTx:        inst.TCPTx,
+		UDPRx:        inst.UDPRx,
+		UDPTx:        inst.UDPTx,
+		Logs:         &logsStr,
+	}
+
+	if err := m.service.ProcessEvent(endpointID, evt); err != nil {
+		log.Errorf("[API.%d]处理事件失败 %v", endpointID, err)
+	}
 }

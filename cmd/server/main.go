@@ -1,10 +1,10 @@
 package main
 
 import (
+	log "NodePassDash/internal/log"
 	"context"
 	"database/sql"
 	"flag"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +18,7 @@ import (
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
+	"runtime"
 
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
@@ -36,13 +37,13 @@ func main() {
 		// 打开数据库
 		db, err := sql.Open("sqlite3", "./public/sqlite.db")
 		if err != nil {
-			log.Fatalf("连接数据库失败: %v", err)
+			log.Errorf("连接数据库失败: %v", err)
 		}
 		defer db.Close()
 
 		authService := auth.NewService(db)
 		if _, _, err := authService.ResetAdminPassword(); err != nil {
-			log.Fatalf("重置密码失败: %v", err)
+			log.Errorf("重置密码失败: %v", err)
 		}
 		return
 	}
@@ -50,13 +51,13 @@ func main() {
 	// 打开数据库连接
 	db, err := sql.Open("sqlite3", "./public/sqlite.db")
 	if err != nil {
-		log.Fatalf("连接数据库失败: %v", err)
+		log.Errorf("连接数据库失败: %v", err)
 	}
 	defer db.Close()
 
 	// 初始化数据库表结构
 	if err := initDatabase(db); err != nil {
-		log.Fatalf("初始化数据库失败: %v", err)
+		log.Errorf("初始化数据库失败: %v", err)
 	}
 
 	// 初始化服务
@@ -68,6 +69,7 @@ func main() {
 	// 创建SSE服务和管理器（需先于处理器创建）
 	sseService := sse.NewService(db)
 	sseManager := sse.NewManager(db, sseService)
+	sseManager.StartWorkers(runtime.NumCPU()) // 比如 4 或 8
 
 	// 初始化处理器
 	authHandler := api.NewAuthHandler(authService)
@@ -117,19 +119,19 @@ func main() {
 
 	// 系统初始化（首次启动输出初始用户名和密码）
 	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
-		log.Fatalf("系统初始化失败: %v", err)
+		log.Errorf("系统初始化失败: %v", err)
 	}
 
 	// 启动SSE系统
 	if err := sseManager.InitializeSystem(); err != nil {
-		log.Printf("初始化SSE系统失败: %v", err)
+		log.Errorf("初始化SSE系统失败: %v", err)
 	}
 
 	// 启动HTTP服务器
 	go func() {
-		log.Printf("NodePassDash %s 启动在 http://localhost:3000", Version)
+		log.Infof("NodePassDash[%s]启动在 http://localhost:3000", Version)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("HTTP服务器错误: %v", err)
+			log.Errorf("HTTP服务器错误: %v", err)
 		}
 	}()
 
@@ -146,7 +148,7 @@ func main() {
 	<-quit
 
 	// 关闭服务
-	log.Println("正在关闭服务器...")
+	log.Infof("正在关闭服务器...")
 
 	// 关闭SSE系统
 	sseManager.Close()
@@ -157,10 +159,10 @@ func main() {
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("服务器关闭错误: %v", err)
+		log.Errorf("服务器关闭错误: %v", err)
 	}
 
-	log.Println("服务器已关闭")
+	log.Infof("服务器已关闭")
 }
 
 // initDatabase 创建必须的表结构（如不存在）

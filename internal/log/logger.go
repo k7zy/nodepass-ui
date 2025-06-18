@@ -1,73 +1,74 @@
 package log
 
 import (
-	"fmt"
-	"log/slog"
-	"os"
+	log "github.com/sirupsen/logrus"
 )
 
-// L 为全局 logger 实例，彩色、带时间戳，默认 Debug 级别
-var L = newLogger()
+// 统一的日志封装，底层使用 logrus。
+//
+// 提供 Info / Debug / Warn / Error 四个常用级别，
+// 参数以 "key", value, ... 键值对形式传递，类似 slog。
+// 例：
+//     log.Info("启动服务", "port", 8080)
+//     log.Error("数据库查询失败", "err", err)
 
-// Fields 类型别名，方便调用方构造字段
-// 示例: logx.Infof(logx.Fields{"endpointID": 1}, "msg: %s", v)
-type Fields = map[string]any
+// parseFields 将可变参数转换为 logrus.Fields。
+func parseFields(args []interface{}) log.Fields {
+	fields := log.Fields{}
+	for i := 0; i+1 < len(args); i += 2 {
+		if k, ok := args[i].(string); ok {
+			fields[k] = args[i+1]
+		}
+	}
+	return fields
+}
 
-// newLogger 初始化 slog.Logger
-func newLogger() *slog.Logger {
-	// 自定义 TextHandler，使输出格式接近官方文档示例：
-	// 2023/08/04 16:09:19 INFO hello, world key=value ...
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			switch a.Key {
-			case slog.TimeKey:
-				// 时间格式调整为 yyyy/MM/dd HH:mm:ss
-				if a.Value.Kind() == slog.KindTime {
-					t := a.Value.Time()
-					a.Key = ""
-					a.Value = slog.StringValue(t.Format("2006/01/02 15:04:05"))
-				}
-			case slog.LevelKey:
-				// 仅输出 INFO/DEBUG 等，不带 key
-				a.Key = ""
-			case slog.MessageKey:
-				// 不改变，保持默认
-			}
-			return a
-		},
+// Info 信息级别日志
+func Info(msg string, args ...interface{}) {
+	log.WithFields(parseFields(args)).Info(msg)
+}
+
+// Debug 调试级别日志
+func Debug(msg string, args ...interface{}) {
+	log.WithFields(parseFields(args)).Debug(msg)
+}
+
+// Warn 警告级别日志
+func Warn(msg string, args ...interface{}) {
+	log.WithFields(parseFields(args)).Warn(msg)
+}
+
+// Error 错误级别日志
+func Error(msg string, args ...interface{}) {
+	log.WithFields(parseFields(args)).Error(msg)
+}
+
+// Infof 使用 fmt 占位符格式化后输出，无额外字段
+func Infof(format string, args ...interface{}) {
+	log.Infof(format, args...)
+}
+
+// Debugf 使用 fmt 占位符格式化
+func Debugf(format string, args ...interface{}) {
+	log.Debugf(format, args...)
+}
+
+// Warnf 使用 fmt 占位符格式化
+func Warnf(format string, args ...interface{}) {
+	log.Warnf(format, args...)
+}
+
+// Errorf 使用 fmt 占位符格式化
+func Errorf(format string, args ...interface{}) {
+	log.Errorf(format, args...)
+}
+
+func init() {
+	// 设置文本格式，带彩色和自定义时间格式
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		ForceColors:     true,
 	})
-	return slog.New(handler)
-}
-
-// convert Fields 到 slog 属性 slice
-func toAttrs(fields Fields) []any {
-	if len(fields) == 0 {
-		return nil
-	}
-	attrs := make([]any, 0, len(fields)*2)
-	for k, v := range fields {
-		attrs = append(attrs, k, v)
-	}
-	return attrs
-}
-
-// Debugf 调试级别日志
-func Debugf(fields Fields, format string, args ...interface{}) {
-	L.Debug(fmt.Sprintf(format, args...), toAttrs(fields)...)
-}
-
-// Infof 信息级别日志
-func Infof(fields Fields, format string, args ...interface{}) {
-	L.Info(fmt.Sprintf(format, args...), toAttrs(fields)...)
-}
-
-// Warnf 警告级别日志
-func Warnf(fields Fields, format string, args ...interface{}) {
-	L.Warn(fmt.Sprintf(format, args...), toAttrs(fields)...)
-}
-
-// Errorf 错误级别日志
-func Errorf(fields Fields, format string, args ...interface{}) {
-	L.Error(fmt.Sprintf(format, args...), toAttrs(fields)...)
+	log.SetLevel(log.DebugLevel)
 }
