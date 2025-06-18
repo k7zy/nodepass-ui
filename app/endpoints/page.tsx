@@ -16,7 +16,11 @@ import {
   ModalHeader,
   Skeleton,
   cn,
-  useDisclosure
+  useDisclosure,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem
 } from "@heroui/react";
 import { useState, useEffect } from "react";
 
@@ -25,7 +29,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faPlus, 
   faServer, 
-  faCheck, 
+  faBullseye, 
   faEye, 
   faEdit, 
   faTrash, 
@@ -38,8 +42,8 @@ import {
   faPen,
   faWifi,
   faSpinner,
-  faAdd,
-  faLightbulb
+  faCopy,
+  faEllipsisVertical
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
@@ -430,7 +434,7 @@ export default function EndpointsPage() {
       <div className="flex items-center justify-between h-full w-full">
         <div className="flex items-center gap-2">
           <FontAwesomeIcon 
-              icon={faCheck} 
+              icon={faBullseye} 
               className={
                 realTimeData.status === 'ONLINE' ? "text-success-600" : 
                 realTimeData.status === 'FAIL' ? "text-danger-600" : "text-warning-600"
@@ -440,37 +444,45 @@ export default function EndpointsPage() {
             {realTimeData.tunnelCount ? `${realTimeData.tunnelCount} 个实例` : "0 个实例"}
           </p>
         </div>
-        <div className="flex items-center gap-1">
-          <div
-            className={cn(
-              "inline-flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors",
-              realTimeData.status === 'ONLINE' 
-                ? "text-warning hover:bg-warning/10" 
-                : "text-success hover:bg-success/10"
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (realTimeData.status === 'ONLINE') {
-                handleDisconnect(endpoint.id);
-              } else {
-                handleConnect(endpoint.id);
-              }
-            }}
-          >
-            <FontAwesomeIcon 
-              icon={realTimeData.status === 'ONLINE' ? faPlugCircleXmark : faPlug} 
-              className={realTimeData.status === 'ONLINE' ? "text-warning" : "text-success"}
-            />
-          </div>
-          <div
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer text-danger hover:bg-danger/10 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteClick(endpoint);
-            }}
-          >
-            <FontAwesomeIcon icon={faTrash} />
-          </div>
+        <div className="flex items-center">
+          <Dropdown placement="bottom-end">
+            <DropdownTrigger>
+              <Button isIconOnly variant="light" size="sm" onPress={(e)=>{(e as any).stopPropagation?.();}}>
+                <FontAwesomeIcon icon={faEllipsisVertical} />
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu aria-label="Actions" onAction={(key)=>{
+                switch(key){
+                  case 'toggle':
+                    if(realTimeData.status==='ONLINE') handleDisconnect(endpoint.id); else handleConnect(endpoint.id);
+                    break;
+                  case 'rename':
+                    handleCardClick(endpoint);
+                    break;
+                  case 'copy':
+                    handleCopyConfig(endpoint);
+                    break;
+                  case 'addTunnel':
+                    handleAddTunnel(endpoint);
+                    break;
+                  case 'delete':
+                    handleDeleteClick(endpoint);
+                    break;
+                }}}>
+              <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加隧道</DropdownItem>
+              <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />}>重命名</DropdownItem>
+              <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>}>复制配置</DropdownItem>
+              <DropdownItem 
+                key="toggle" 
+                startContent={<FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug}/> }
+                color={realTimeData.status==='ONLINE' ? 'warning' : 'success'}
+                className={realTimeData.status==='ONLINE' ? 'text-warning' : 'text-success'}
+              >
+                {realTimeData.status==='ONLINE'?'断开连接':'连接主控'}
+              </DropdownItem>
+              <DropdownItem key="delete" className="text-danger" color="danger" startContent={<FontAwesomeIcon icon={faTrash}/>}>删除主控</DropdownItem>
+            </DropdownMenu>
+          </Dropdown>
         </div>
       </div>
     );
@@ -552,10 +564,59 @@ export default function EndpointsPage() {
     }
   };
 
+  // 打开添加隧道弹窗
+  const {isOpen: isAddTunnelOpen, onOpen: onAddTunnelOpen, onOpenChange: onAddTunnelOpenChange} = useDisclosure();
+  const [tunnelUrl, setTunnelUrl] = useState('');
+
+  function handleAddTunnel(endpoint: FormattedEndpoint) {
+    setSelectedEndpoint(endpoint);
+    setTunnelUrl('');
+    onAddTunnelOpen();
+  }
+
+  // 提交添加隧道
+  const handleSubmitAddTunnel = async () => {
+    if(!selectedEndpoint) return;
+    if(!tunnelUrl.trim()) {
+      addToast({title:'请输入 URL', description:'隧道 URL 不能为空', color:'warning'});
+      return;
+    }
+    try {
+      const res = await fetch(buildApiUrl('/api/tunnels/quick'), {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({endpointId: selectedEndpoint.id, url: tunnelUrl.trim()})
+      });
+      const data = await res.json();
+      if(!res.ok || !data.success){
+        throw new Error(data.error || '创建隧道失败');
+      }
+      addToast({title:'创建成功', description: data.message || '隧道已创建', color:'success'});
+      onAddTunnelOpenChange();
+    } catch(err){
+      addToast({title:'创建失败', description: err instanceof Error ? err.message : '无法创建隧道', color:'danger'});
+    }
+  };
+
+  // 复制配置到剪贴板
+  function handleCopyConfig(endpoint: FormattedEndpoint) {
+    const cfg = `API URL: ${endpoint.url}${endpoint.apiPath}\nAPI KEY: ${endpoint.apiKey}`;
+    navigator.clipboard.writeText(cfg).then(()=>{
+      addToast({title:'已复制', description:'配置已复制到剪贴板', color:'success'});
+    }).catch(()=>{
+      addToast({title:'复制失败', description:'无法复制到剪贴板', color:'danger'});
+    });
+  }
+
   return (
     <div className="max-w-7xl mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">API 主控管理</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">API 主控管理</h1>
+          <Button isIconOnly variant="light" onPress={async ()=>{await fetchEndpoints();}}>
+            <FontAwesomeIcon icon={faRotateRight} />
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -610,8 +671,6 @@ export default function EndpointsPage() {
               <Card 
                 key={endpoint.id} 
                 className="relative w-full h-[200px]"
-                isPressable
-                onPress={() => handleCardClick(endpoint)}
               >
                 {/* 状态按钮 */}
                 <div
@@ -636,14 +695,14 @@ export default function EndpointsPage() {
                     <h2 className="inline bg-gradient-to-br from-foreground-800 to-foreground-500 bg-clip-text text-2xl font-semibold tracking-tight text-transparent dark:to-foreground-200">
                       {endpoint.name}
                     </h2>
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-normal rounded-md bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                    {/* <span className="inline-flex items-center px-2 py-1 text-xs font-normal rounded-md bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                       {endpoint.apiPath}
-                    </span>
+                    </span> */}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-default-400">
                       <FontAwesomeIcon icon={faServer} />
-                      <span className="text-small truncate">{endpoint.url}</span>
+                      <span className="text-small truncate">{endpoint.url}{endpoint.apiPath}</span>
                     </div>
                     <div className="flex items-center gap-2 text-default-400">
                       <FontAwesomeIcon 
@@ -712,10 +771,32 @@ export default function EndpointsPage() {
         <RenameEndpointModal
           isOpen={isRenameOpen}
           onOpenChange={onRenameOpenChange}
-          onRename={handleRename}
           currentName={selectedEndpoint.name}
+          onRename={handleRename}
         />
       )}
+
+      {/* 添加隧道弹窗 */}
+      <Modal isOpen={isAddTunnelOpen} onOpenChange={onAddTunnelOpenChange} placement="center">
+        <ModalContent>
+          {(onClose)=> (
+            <>
+              <ModalHeader>添加隧道</ModalHeader>
+              <ModalBody>
+                <Input
+                  placeholder="<core>://<tunnel_addr>/<target_addr>"
+                  value={tunnelUrl}
+                  onValueChange={setTunnelUrl}
+                />
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>取消</Button>
+                <Button color="primary" onPress={handleSubmitAddTunnel}>确定</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       {/* 删除确认模态框 */}
       <Modal isOpen={isDeleteOpen} onOpenChange={onDeleteOpenChange} placement="center">

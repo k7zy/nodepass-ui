@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,119 @@ type OperationLog struct {
 	Status     string         `json:"status"`
 	Message    sql.NullString `json:"message,omitempty"`
 	CreatedAt  time.Time      `json:"createdAt"`
+}
+
+// parsedURL 表示解析后的隧道 URL 各字段（与 SSE 模块保持一致）
+type parsedURL struct {
+	TunnelAddress string
+	TunnelPort    string
+	TargetAddress string
+	TargetPort    string
+	TLSMode       string
+	LogLevel      string
+	CertPath      string
+	KeyPath       string
+}
+
+// parseInstanceURL 解析隧道实例 URL（简化实现，与 SSE 保持一致）
+func parseInstanceURL(raw, mode string) parsedURL {
+	// 默认值
+	res := parsedURL{
+		TLSMode:  "inherit",
+		LogLevel: "inherit",
+		CertPath: "",
+		KeyPath:  "",
+	}
+
+	if raw == "" {
+		return res
+	}
+
+	// 去除协议部分 protocol://
+	if idx := strings.Index(raw, "://"); idx != -1 {
+		raw = raw[idx+3:]
+	}
+
+	// 分离查询参数
+	var queryPart string
+	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
+		queryPart = raw[qIdx+1:]
+		raw = raw[:qIdx]
+	}
+
+	// 分离路径
+	var hostPart, pathPart string
+	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
+		hostPart = raw[:pIdx]
+		pathPart = raw[pIdx+1:]
+	} else {
+		hostPart = raw
+	}
+
+	// 解析 hostPart -> tunnelAddress:tunnelPort
+	if hostPart != "" {
+		if strings.Contains(hostPart, ":") {
+			parts := strings.SplitN(hostPart, ":", 2)
+			res.TunnelAddress = parts[0]
+			res.TunnelPort = parts[1]
+		} else {
+			if _, err := strconv.Atoi(hostPart); err == nil {
+				res.TunnelPort = hostPart
+			} else {
+				res.TunnelAddress = hostPart
+			}
+		}
+	}
+
+	// 解析 pathPart -> targetAddress:targetPort
+	if pathPart != "" {
+		if strings.Contains(pathPart, ":") {
+			parts := strings.SplitN(pathPart, ":", 2)
+			res.TargetAddress = parts[0]
+			res.TargetPort = parts[1]
+		} else {
+			if _, err := strconv.Atoi(pathPart); err == nil {
+				res.TargetPort = pathPart
+			} else {
+				res.TargetAddress = pathPart
+			}
+		}
+	}
+
+	// 解析查询参数
+	if queryPart != "" {
+		for _, kv := range strings.Split(queryPart, "&") {
+			if kv == "" {
+				continue
+			}
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := parts[0], parts[1]
+			switch key {
+			case "tls":
+				if mode == "server" {
+					switch val {
+					case "0":
+						res.TLSMode = "mode0"
+					case "1":
+						res.TLSMode = "mode1"
+					case "2":
+						res.TLSMode = "mode2"
+					}
+				}
+			case "log":
+				res.LogLevel = strings.ToLower(val)
+			case "crt":
+				res.CertPath = val
+			case "key":
+				res.KeyPath = val
+			}
+		}
+	}
+
+	return res
 }
 
 // NewService 创建隧道服务实例
@@ -801,4 +915,35 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 // DB 返回底层 *sql.DB 指针，供需要直接执行查询的调用者使用
 func (s *Service) DB() *sql.DB {
 	return s.db
+}
+
+// QuickCreateTunnel 根据完整 URL 快速创建隧道实例 (server://addr:port/target:port?params)
+func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string) error {
+	// 粗解析协议
+	idx := strings.Index(rawURL, "://")
+	if idx == -1 {
+		return errors.New("无效的隧道URL")
+	}
+	mode := rawURL[:idx]
+	cfg := parseInstanceURL(rawURL, mode) // 复用 sse 里的同名私有函数，此处复制实现
+
+	// 端口转换
+	tp, _ := strconv.Atoi(cfg.TunnelPort)
+	sp, _ := strconv.Atoi(cfg.TargetPort)
+
+	req := CreateTunnelRequest{
+		Name:          fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix()),
+		EndpointID:    endpointID,
+		Mode:          mode,
+		TunnelAddress: cfg.TunnelAddress,
+		TunnelPort:    tp,
+		TargetAddress: cfg.TargetAddress,
+		TargetPort:    sp,
+		TLSMode:       TLSMode(cfg.TLSMode),
+		CertPath:      cfg.CertPath,
+		KeyPath:       cfg.KeyPath,
+		LogLevel:      LogLevel(cfg.LogLevel),
+	}
+	_, err := s.CreateTunnel(req)
+	return err
 }

@@ -794,3 +794,47 @@ func ptrString(ns sql.NullString) string {
 	}
 	return ""
 }
+
+// HandleQuickCreateTunnel 根据 URL 快速创建隧道
+func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		EndpointID int64  `json:"endpointId"`
+		URL        string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	if req.EndpointID == 0 || req.URL == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "endpointId 和 url 均不能为空",
+		})
+		return
+	}
+
+	if err := h.tunnelService.QuickCreateTunnel(req.EndpointID, req.URL); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		Success: true,
+		Message: "隧道创建成功",
+	})
+}

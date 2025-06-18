@@ -171,6 +171,9 @@ func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string)
 	go m.listenSSE(ctx, conn)
 	slog.Info("已启动 SSE 监听协程", "endpointID", endpointID)
 
+	// 立即标记端点为 ONLINE（监听协程会负责后续状态更新）
+	m.markEndpointOnline(endpointID)
+
 	return nil
 }
 
