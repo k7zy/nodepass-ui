@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -22,7 +23,30 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
+var Version = "dev"
+
 func main() {
+	// 命令行参数处理
+	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
+	flag.Parse()
+
+	// 如果指定了 --resetpwd，则进入密码重置流程后退出
+	if *resetPwdCmd {
+		// 打开数据库
+		db, err := sql.Open("sqlite3", "./public/sqlite.db")
+		if err != nil {
+			log.Fatalf("连接数据库失败: %v", err)
+		}
+		defer db.Close()
+
+		authService := auth.NewService(db)
+		if _, _, err := authService.ResetAdminPassword(); err != nil {
+			log.Fatalf("重置密码失败: %v", err)
+		}
+		return
+	}
+
 	// 打开数据库连接
 	db, err := sql.Open("sqlite3", "./public/sqlite.db")
 	if err != nil {
@@ -103,7 +127,7 @@ func main() {
 
 	// 启动HTTP服务器
 	go func() {
-		log.Printf("服务器启动在 http://localhost:3000")
+		log.Printf("NodePassDash %s 启动在 http://localhost:3000", Version)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("HTTP服务器错误: %v", err)
 		}

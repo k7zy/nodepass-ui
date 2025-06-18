@@ -301,6 +301,8 @@ func (s *Service) ChangePassword(username, currentPassword, newPassword string) 
 		return false, "更新密码失败"
 	}
 
+	// 使所有现有 Session 失效
+	s.invalidateAllSessions()
 	return true, "密码修改成功"
 }
 
@@ -329,5 +331,60 @@ func (s *Service) ChangeUsername(currentUsername, newUsername string) (bool, str
 		return true
 	})
 
+	// 使所有现有 Session 失效
+	s.invalidateAllSessions()
 	return true, "用户名修改成功"
+}
+
+// ResetAdminPassword 重置管理员密码并返回新密码
+func (s *Service) ResetAdminPassword() (string, string, error) {
+	// 确认系统已初始化
+	initialized := s.IsSystemInitialized()
+	if !initialized {
+		return "", "", errors.New("系统未初始化，无法重置密码")
+	}
+
+	// 读取当前用户名
+	username, err := s.GetSystemConfig(ConfigKeyAdminUsername)
+	if err != nil || username == "" {
+		username = "nodepass"
+	}
+
+	// 生成新密码
+	newPassword := generateRandomPassword(12)
+	hash, err := s.HashPassword(newPassword)
+	if err != nil {
+		return "", "", err
+	}
+
+	// 更新配置
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, hash, "管理员密码哈希"); err != nil {
+		return "", "", err
+	}
+
+	// 使所有现有 Session 失效
+	s.invalidateAllSessions()
+
+	// 输出提示
+	fmt.Println("================================")
+	fmt.Println("🔐 NodePass 管理员密码已重置！")
+	fmt.Println("================================")
+	fmt.Println("用户名:", username)
+	fmt.Println("新密码:", newPassword)
+	fmt.Println("================================")
+	fmt.Println("⚠️  请尽快登录并修改此密码！")
+	fmt.Println("================================")
+
+	return username, newPassword, nil
+}
+
+// invalidateAllSessions 使所有会话失效（数据库 + 缓存）
+func (s *Service) invalidateAllSessions() {
+	// 更新数据库会话状态
+	_, _ = s.db.Exec(`UPDATE "UserSession" SET isActive = 0`)
+	// 清空缓存
+	sessionCache.Range(func(key, value interface{}) bool {
+		sessionCache.Delete(key)
+		return true
+	})
 }

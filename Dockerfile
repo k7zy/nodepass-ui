@@ -24,6 +24,7 @@ RUN pnpm prune --prod
 
 # ========= Go 构建阶段 =========
 FROM golang:1.21-alpine AS backend-builder
+ARG VERSION=dev
 WORKDIR /app
 
 # 安装编译依赖
@@ -39,8 +40,8 @@ COPY --from=frontend-builder /app .
 # 启用 CGO
 ENV CGO_ENABLED=1
 
-# 编译 Backend 可执行文件
-RUN go build -ldflags "-s -w" -o server ./cmd/server
+# 编译 Backend 可执行文件，注入版本号
+RUN go build -ldflags "-s -w -X main.Version=${VERSION}" -o server ./cmd/server
 
 # ========= 运行阶段 =========
 ARG VERSION=dev
