@@ -23,7 +23,9 @@ import {
   faDesktop,
   faCheck,
   faXmark,
-  faExclamationTriangle
+  faExclamationTriangle,
+  faBars,
+  faTableCells
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 
@@ -114,6 +116,7 @@ export default function CreateTunnelPage() {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [layout, setLayout] = useState<"card" | "list">("card");
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
@@ -246,8 +249,19 @@ export default function CreateTunnelPage() {
       </div>
 
       <Card className="p-2 shadow-none border-2 border-default-200">
-        <CardHeader>
+        <CardHeader className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">选择 API 主控</h2>
+          <Button
+            isIconOnly
+            variant="faded"
+            size="sm"
+            onClick={() => setLayout(layout === "card" ? "list" : "card")}
+          >
+            <FontAwesomeIcon
+              icon={layout === "card" ? faBars : faTableCells}
+              className="text-sm"
+            />
+          </Button>
         </CardHeader>
         <Divider />
         <CardBody className="p-6">
@@ -287,35 +301,64 @@ export default function CreateTunnelPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto scrollbar-hide">
-              <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+            layout === "card" ? (
+              <div className="overflow-x-auto scrollbar-hide">
+                <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+                  {endpoints.map((endpoint) => (
+                    <Card
+                      key={endpoint.id}
+                      isPressable
+                      isHoverable
+                      className={`min-w-[280px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                      onClick={() => handleInputChange("apiEndpoint", endpoint.id)}
+                    >
+                      <CardBody className="space-y-2 p-4">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className={cn(
+                              "w-2 h-2 rounded-full inline-block",
+                              endpoint.status === 'ONLINE' ? "bg-success" : "bg-danger"
+                            )}
+                          />
+                          <h3 className="font-semibold text-sm">{endpoint.name}</h3>
+                        </div>
+                        <p className="text-small text-default-500 truncate">{endpoint.url}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {endpoints.map((endpoint) => (
                   <Card
                     key={endpoint.id}
                     isPressable
                     isHoverable
-                    className={`min-w-[280px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                    className={`shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
                     onClick={() => handleInputChange("apiEndpoint", endpoint.id)}
                   >
-                    <CardBody className="space-y-2 p-4">
-                      <div className="flex items-center gap-2">
-                        <span 
+                    <CardBody className="flex items-center gap-2 p-4 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-0 w-full">
+                        {/* 状态点 */}
+                        <span
                           className={cn(
-                            "w-2 h-2 rounded-full inline-block",
+                            "w-2 h-2 rounded-full flex-shrink-0",
                             endpoint.status === 'ONLINE' ? "bg-success" : "bg-danger"
                           )}
                         />
-                        <h3 className="font-semibold text-sm">{endpoint.name}</h3>
-                      </div>
-                      <p className="text-small text-default-500 truncate">{endpoint.url}</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
+                        {/* 名称与 URL  */}
+                        <h3 className="font-semibold text-sm truncate max-w-[6rem]">{endpoint.name}</h3>
+                        <p className="text-small text-default-500 truncate flex-1">{endpoint.url}</p>
                       </div>
                     </CardBody>
                   </Card>
                 ))}
               </div>
-            </div>
+            )
           )}
         </CardBody>
       </Card>
