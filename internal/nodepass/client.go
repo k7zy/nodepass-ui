@@ -2,6 +2,7 @@ package nodepass
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,7 +29,17 @@ type Client struct {
 // NewClient 新建客户端；httpClient 为空时使用默认 15 秒超时
 func NewClient(baseURL, apiPath, apiKey string, httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 15 * time.Second}
+		// 复制默认 Transport 并禁用证书校验，以支持自建/自签名 SSL
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		if tr.TLSClientConfig == nil {
+			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		} else {
+			tr.TLSClientConfig.InsecureSkipVerify = true
+		}
+		httpClient = &http.Client{
+			Timeout:   15 * time.Second,
+			Transport: tr,
+		}
 	}
 	return &Client{
 		baseURL:    baseURL,
