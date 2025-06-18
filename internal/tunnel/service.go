@@ -234,7 +234,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			req.KeyPath,
 			req.LogLevel,
 			commandLine,
-			remoteStatus,
+			"running",
 			now,
 			now,
 		)
