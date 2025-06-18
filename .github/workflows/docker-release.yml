@@ -60,6 +60,12 @@ jobs:
           build-args: |
             VERSION=${{ steps.vars.outputs.version }}
           platforms: linux/amd64,linux/arm64
+          cache-from: |
+            type=gha,scope=standard-${{ github.workflow }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache
+          cache-to: |
+            type=gha,mode=max,scope=standard-${{ github.workflow }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache,mode=max
 
       - name: Output version info
         run: |
