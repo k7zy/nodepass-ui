@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"NodePassDash/internal/models"
+
+	"github.com/r3labs/sse/v2"
 )
 
 // simpleHandler 实现自定义输出格式: 2025/06/15 11:09:19 INFO msg k=v ...
@@ -185,88 +187,80 @@ func (m *Manager) DisconnectEndpoint(endpointID int64) {
 	}
 }
 
-// listenSSE 监听端点SSE
+// listenSSE 使用 r3labs/sse 监听端点
 func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	sseURL := fmt.Sprintf("%s%s/events", conn.URL, conn.APIPath)
-	slog.Info("开始监听 SSE", "endpointID", conn.EndpointID, "url", sseURL)
+	slog.Info("开始监听 SSE (r3labs)", "endpointID", conn.EndpointID, "url", sseURL)
 
-	const maxRetry = 3
-	retryCount := 0
+	client := sse.NewClient(sseURL)
+	client.Headers["X-API-Key"] = conn.APIKey
+	// 自签名 SSL
+	client.Connection.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	// 使用默认 ReconnectStrategy（指数退避），不限重试次数
+	events := make(chan *sse.Event, 16)
+
+	// 在独立 goroutine 中订阅；SubscribeChanRawWithContext 会阻塞直至 ctx.Done()
+	go func() {
+		if err := client.SubscribeChanRawWithContext(ctx, events); err != nil {
+			slog.Error("SSE 订阅错误", "endpointID", conn.EndpointID, "err", err)
+		}
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
+			client.Unsubscribe(events)
 			return
-		default:
-		}
-
-		// 创建SSE请求
-		req, err := http.NewRequestWithContext(ctx, "GET", sseURL, nil)
-		if err != nil {
-			slog.Warn("创建 SSE 请求失败", "endpointID", conn.EndpointID, "err", err)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		// 设置请求头
-		req.Header.Set("Accept", "text/event-stream")
-		req.Header.Set("Cache-Control", "no-cache")
-		req.Header.Set("Connection", "keep-alive")
-		req.Header.Set("X-API-Key", conn.APIKey)
-
-		// 发送请求
-		resp, err := conn.Client.Do(req)
-		if err != nil {
-			slog.Warn("发送 SSE 请求失败", "endpointID", conn.EndpointID, "err", err)
-			retryCount++
-			if retryCount >= maxRetry {
-				slog.Warn("已连续失败，标记端点为 FAIL", "endpointID", conn.EndpointID, "retry", retryCount)
-				m.markEndpointFail(conn.EndpointID)
+		case ev, ok := <-events:
+			if !ok {
+				slog.Warn("SSE 事件通道已关闭", "endpointID", conn.EndpointID)
 				return
 			}
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			slog.Warn("端点返回非200状态码", "endpointID", conn.EndpointID, "statusCode", resp.StatusCode, "status", resp.Status)
-			resp.Body.Close()
-			retryCount++
-			if retryCount >= maxRetry {
-				slog.Warn("已连续失败，标记端点为 FAIL", "endpointID", conn.EndpointID, "retry", retryCount)
-				m.markEndpointFail(conn.EndpointID)
-				return
+			if ev == nil {
+				continue
 			}
-			time.Sleep(5 * time.Second)
-			continue
-		}
 
-		slog.Info("与端点建立 SSE 连接成功", "endpointID", conn.EndpointID)
-		// 将端点状态标记为 ONLINE
-		m.markEndpointOnline(conn.EndpointID)
-
-		// 处理SSE流
-		if err := m.handleSSEStream(ctx, conn, resp); err != nil {
-			slog.Warn("处理 SSE 流失败", "endpointID", conn.EndpointID, "err", err)
-			resp.Body.Close()
-			retryCount++
-			if retryCount >= maxRetry {
-				slog.Warn("已连续失败，标记端点为 FAIL", "endpointID", conn.EndpointID, "retry", retryCount)
-				m.markEndpointFail(conn.EndpointID)
-				return
+			payload := strings.TrimSpace(string(ev.Data))
+			if payload == "" {
+				continue
 			}
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		slog.Info("SSE 连接结束，准备重试", "endpointID", conn.EndpointID)
 
-		retryCount++
-		if retryCount >= maxRetry {
-			slog.Warn("已连续失败，标记端点为 FAIL", "endpointID", conn.EndpointID, "retry", retryCount)
-			m.markEndpointFail(conn.EndpointID)
-			return
+			var event struct {
+				Type      string          `json:"type"`
+				Time      interface{}     `json:"time"`
+				Logs      interface{}     `json:"logs"`
+				Instance  json.RawMessage `json:"instance"`
+				Instances json.RawMessage `json:"instances"`
+			}
+
+			if err := json.Unmarshal([]byte(payload), &event); err != nil {
+				slog.Warn("解码 SSE JSON 失败", "endpointID", conn.EndpointID, "err", err)
+				continue
+			}
+
+			var logsStr string
+			if event.Logs != nil {
+				if s, ok := event.Logs.(string); ok {
+					logsStr = s
+				} else {
+					logsStr = fmt.Sprintf("%v", event.Logs)
+				}
+			}
+
+			switch event.Type {
+			case "initial":
+				if err := m.handleInitialEvent(conn.EndpointID, event.Instance, logsStr); err != nil {
+					slog.Error("处理 initial 事件失败", "endpointID", conn.EndpointID, "err", err)
+				}
+			case "create", "update", "delete", "log":
+				if err := m.handleInstanceEvent(conn.EndpointID, event.Type, event.Instance, logsStr); err != nil {
+					slog.Error("处理实例事件失败", "endpointID", conn.EndpointID, "err", err)
+				}
+			}
 		}
-		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -388,9 +382,7 @@ func (m *Manager) handleInitialEvent(endpointID int64, instancesData json.RawMes
 	}
 
 	var instances []instPayload
-
 	if err := json.Unmarshal(instancesData, &instances); err != nil {
-		// 如果解析为数组失败，尝试解析为单对象
 		var single instPayload
 		if err2 := json.Unmarshal(instancesData, &single); err2 != nil {
 			return fmt.Errorf("解析实例数据失败: %v", err)
@@ -414,12 +406,10 @@ func (m *Manager) handleInitialEvent(endpointID int64, instancesData json.RawMes
 			UDPTx:        inst.UDPTx,
 			Logs:         &logs,
 		}
-
 		if err := m.service.ProcessEvent(endpointID, event); err != nil {
 			slog.Error("处理实例初始事件失败", "endpointID", endpointID, "instanceID", inst.ID, "err", err)
 		}
 	}
-
 	return nil
 }
 
@@ -435,11 +425,9 @@ func (m *Manager) handleInstanceEvent(endpointID int64, eventType string, instan
 		UDPRx  int64  `json:"udprx"`
 		UDPTx  int64  `json:"udptx"`
 	}
-
 	if err := json.Unmarshal(instanceData, &inst); err != nil {
 		return fmt.Errorf("解析实例数据失败: %v", err)
 	}
-
 	event := models.EndpointSSE{
 		EventType:    models.SSEEventType(eventType),
 		PushType:     eventType,
@@ -455,12 +443,9 @@ func (m *Manager) handleInstanceEvent(endpointID int64, eventType string, instan
 		UDPTx:        inst.UDPTx,
 		Logs:         &logs,
 	}
-
 	if err := m.service.ProcessEvent(endpointID, event); err != nil {
 		return err
 	}
-
-	// slog.Info("SSE instance event processed", "endpointID", endpointID, "instanceId", inst.ID, "eventType", eventType)
 	return nil
 }
 
@@ -468,7 +453,6 @@ func (m *Manager) handleInstanceEvent(endpointID int64, eventType string, instan
 func (m *Manager) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	for _, conn := range m.connections {
 		conn.Cancel()
 	}

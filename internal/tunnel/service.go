@@ -721,7 +721,36 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration) 
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return errors.New("等待删除超时，记录仍存在")
+	// 超时仍未删除，执行本地强制删除并刷新计数
+	slog.Warn("等待删除超时，执行本地删除", "instanceId", instanceID)
+
+	// 删除隧道记录
+	result, err := s.db.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, tunnel.ID)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return errors.New("隧道删除失败")
+	}
+
+	// 更新端点隧道计数
+	_, _ = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+	) WHERE id = ?`, tunnel.EndpointID, tunnel.EndpointID)
+
+	// 写入操作日志
+	_, _ = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
+		tunnelId, tunnelName, action, status, message
+	) VALUES (?, ?, ?, ?, ?)`,
+		tunnel.ID,
+		tunnel.Name,
+		"delete",
+		"success",
+		"远端删除超时，本地强制删除",
+	)
+
+	return nil
 }
 
 // RenameTunnel 仅修改隧道名称，不调用远端 API
