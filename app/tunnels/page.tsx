@@ -196,7 +196,7 @@ export default function TunnelsPage() {
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
     { key: "endpoint", label: "主控" },
-    { key: "tunnelAddress", label: "实例地址" },
+    { key: "tunnelAddress", label: "隧道地址" },
     { key: "targetAddress", label: "目标地址" },
     { key: "status", label: "状态" },
     { key: "actions", label: "操作" },

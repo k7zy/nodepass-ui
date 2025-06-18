@@ -343,7 +343,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">服务端模式</h3>
-                  <p className="text-small text-default-500">实例监听端，提供目标服务出口或入口，需双端握手</p>
+                  <p className="text-small text-default-500">隧道监听端，提供目标服务出口或入口，需双端握手</p>
                 </div>
               </CardBody>
             </Card>
@@ -363,7 +363,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">客户端模式</h3>
-                  <p className="text-small text-default-500">实例拨号端，提供目标服务入口或出口，可单端转发</p>
+                  <p className="text-small text-default-500">隧道拨号端，提供目标服务入口或出口，可单端转发</p>
                 </div>
               </CardBody>
             </Card>
@@ -431,13 +431,13 @@ export default function CreateTunnelPage() {
               <CardBody className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="实例地址"
+                    label="隧道地址"
                     placeholder="0.0.0.0"
                     value={formData.tunnelAddress}
                     onChange={(e) => handleInputChange("tunnelAddress", e.target.value)}
                   />
                   <Input
-                    label="实例端口"
+                    label="隧道端口"
                     placeholder="10101"
                     type="number"
                     min={0}
@@ -543,7 +543,7 @@ export default function CreateTunnelPage() {
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务端模式" : "客户端模式"}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例名称：</span> {formData.tunnelName}</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
                 {formData.mode === "server" &&
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "inherit" ? "继承主控设置" : formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
