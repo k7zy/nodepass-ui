@@ -29,7 +29,7 @@ type Router struct {
 
 // NewRouter 创建路由器实例
 // 如果外部已创建 sseService / sseManager，则传入以复用，避免出现多个实例导致推流失效
-func NewRouter(db *sql.DB, sharedSSE *sse.Service, sharedManager *sse.Manager) *Router {
+func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Router {
 	// 创建路由器（忽略末尾斜杠差异）
 	router := mux.NewRouter()
 	router.StrictSlash(true)
@@ -39,17 +39,12 @@ func NewRouter(db *sql.DB, sharedSSE *sse.Service, sharedManager *sse.Manager) *
 	endpointService := endpoint.NewService(db)
 	instanceService := instance.NewService(db)
 	tunnelService := tunnel.NewService(db)
-	var sseService *sse.Service
-	var sseManager *sse.Manager
-	if sharedSSE != nil {
-		sseService = sharedSSE
-	} else {
-		sseService = sse.NewService(db)
+
+	if sseService == nil {
+		panic("sseService is nil")
 	}
-	if sharedManager != nil {
-		sseManager = sharedManager
-	} else {
-		sseManager = sse.NewManager(db, sseService)
+	if sseManager == nil {
+		panic("sseManager is nil")
 	}
 	dashboardService := dashboard.NewService(db)
 

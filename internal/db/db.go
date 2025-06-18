@@ -1,37 +1,41 @@
 package db
 
 import (
-    "database/sql"
-    _ "github.com/mattn/go-sqlite3"
-    "log"
-    "sync"
+	"database/sql"
+	"log"
+	"sync"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
-    db   *sql.DB
-    once sync.Once
+	db   *sql.DB
+	once sync.Once
 )
 
 // DB 获取数据库单例
 func DB() *sql.DB {
-    once.Do(func() {
-        var err error
-        db, err = sql.Open("sqlite3", "data.db?_journal_mode=WAL")
-        if err != nil {
-            log.Fatal(err)
-        }
+	once.Do(func() {
+		var err error
+		db, err = sql.Open("sqlite3", "data.db?_journal_mode=WAL&_busy_timeout=3000")
+		if err != nil {
+			log.Fatal(err)
+		}
 
-        // 初始化表结构
-        if err := initSchema(db); err != nil {
-            log.Fatal(err)
-        }
-    })
-    return db
+		// 初始化表结构
+		if err := initSchema(db); err != nil {
+			log.Fatal(err)
+		}
+
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	})
+	return db
 }
 
 // 初始化数据库Schema
 func initSchema(db *sql.DB) error {
-    _, err := db.Exec(`
+	_, err := db.Exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -40,5 +44,5 @@ func initSchema(db *sql.DB) error {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `)
-    return err
-} 
+	return err
+}
