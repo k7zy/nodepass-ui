@@ -181,7 +181,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 10*time.Second); err != nil {
+	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 3*time.Second); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,

@@ -418,26 +418,42 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 
 	// 调用 NodePass API
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
-	_, err = npClient.ControlInstance(req.InstanceID, req.Action)
-	if err != nil {
+	if _, err = npClient.ControlInstance(req.InstanceID, req.Action); err != nil {
 		return err
 	}
 
-	// 更新隧道状态
-	// @todo restart 会返回stopped
-	// err = s.UpdateTunnelStatus(req.InstanceID, TunnelStatus(remoteStatus))
-	// if err != nil {
-	// 	return err
-	// }
+	// 目标状态映射
+	var targetStatus TunnelStatus
+	switch req.Action {
+	case "start", "restart":
+		targetStatus = StatusRunning
+	case "stop":
+		targetStatus = StatusStopped
+	default:
+		targetStatus = "" // 不会发生，已验证
+	}
 
-	// todo 这里的更新下一版改成监听数据库变化到目标状态再返回
+	// 轮询数据库等待状态变更 (最多8秒)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var curStatus string
+		if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
+			if TunnelStatus(curStatus) == targetStatus {
+				break // 成功
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// 再次检查，若仍未到目标状态则手动更新
+	var finalStatus string
+	_ = s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&finalStatus)
+	if TunnelStatus(finalStatus) != targetStatus {
+		_ = s.UpdateTunnelStatus(req.InstanceID, targetStatus)
+	}
 
 	// 记录操作日志
-	_, err = s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
+	_, err = s.db.Exec(`INSERT INTO "TunnelOperationLog" (tunnelId, tunnelName, action, status, message) VALUES (?, ?, ?, ?, ?)`,
 		tunnel.ID,
 		tunnel.Name,
 		req.Action,
