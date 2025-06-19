@@ -1,9 +1,9 @@
 package api
 
 import (
+	log "NodePassDash/internal/log"
 	"database/sql"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -137,7 +137,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		Max:           maxVal,
 	}
 
-	slog.Info("创建隧道请求", "name", req.Name, "endpointId", req.EndpointID, "mode", req.Mode)
+	log.Infof("[API.%v] 创建隧道请求: %v", req.EndpointID, req.Name)
 
 	newTunnel, err := h.tunnelService.CreateTunnel(req)
 	if err != nil {

@@ -1,12 +1,12 @@
 package api
 
 import (
+	log "NodePassDash/internal/log"
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -94,9 +94,9 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 	// 创建成功后，异步启动 SSE 监听
 	if h.sseManager != nil && newEndpoint != nil {
 		go func(ep *endpoint.Endpoint) {
-			slog.Info("新端点创建成功，准备启动 SSE 监听", "endpointID", ep.ID)
+			log.Infof("[API.%v] 创建成功，准备启动 SSE 监听", ep.ID)
 			if err := h.sseManager.ConnectEndpoint(ep.ID, ep.URL, ep.APIPath, ep.APIKey); err != nil {
-				slog.Warn("启动 SSE 监听失败", "endpointID", ep.ID, "err", err)
+				log.Errorf("[API.%v] 启动 SSE 监听失败: %v", ep.ID, err)
 			}
 		}(newEndpoint)
 	}
@@ -189,9 +189,9 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 
 	// 如果存在 SSE 监听，先断开
 	if h.sseManager != nil {
-		slog.Info("删除端点前，先断开 SSE 监听", "endpointID", id)
+		log.Infof("[API.%v] 删除端点前，先断开 SSE 监听", id)
 		h.sseManager.DisconnectEndpoint(id)
-		slog.Info("已断开 SSE 监听", "endpointID", id)
+		log.Infof("[API.%v] 已断开 SSE 监听", id)
 	}
 
 	if err := h.endpointService.DeleteEndpoint(id); err != nil {
@@ -203,7 +203,7 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	slog.Info("端点及其隧道已删除", "endpointID", id)
+	log.Infof("[API.%v] 端点及其隧道已删除", id)
 
 	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
 		Success: true,
@@ -285,9 +285,9 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 			go func(eid int64) {
 				ep, err := h.endpointService.GetEndpointByID(eid)
 				if err == nil {
-					slog.Info("手动重连端点，启动 SSE", "endpointID", eid)
+					log.Infof("[API.%v] 手动重连端点，启动 SSE", eid)
 					if err := h.sseManager.ConnectEndpoint(eid, ep.URL, ep.APIPath, ep.APIKey); err != nil {
-						slog.Warn("手动重连端点失败", "endpointID", eid, "err", err)
+						log.Errorf("[API.%v] 手动重连端点失败: %v", eid, err)
 					}
 				}
 			}(id)
@@ -296,14 +296,14 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 	case "disconnect":
 		if h.sseManager != nil {
 			go func(eid int64) {
-				slog.Info("手动断开端点 SSE", "endpointID", eid)
+				log.Infof("[API.%v] 手动断开端点 SSE", eid)
 				h.sseManager.DisconnectEndpoint(eid)
 
 				// 更新端点状态为 OFFLINE
 				if err := h.endpointService.UpdateEndpointStatus(eid, endpoint.StatusOffline); err != nil {
-					slog.Warn("更新端点状态为 OFFLINE 失败", "endpointID", eid, "err", err)
+					log.Errorf("[API.%v] 更新端点状态为 OFFLINE 失败: %v", eid, err)
 				} else {
-					slog.Info("端点状态已更新为 OFFLINE", "endpointID", eid)
+					log.Infof("[API.%v] 端点状态已更新为 OFFLINE", eid)
 				}
 			}(id)
 		}

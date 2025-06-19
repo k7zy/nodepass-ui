@@ -7,8 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"log/slog"
-
+	log "NodePassDash/internal/log"
 	"NodePassDash/internal/sse"
 )
 
@@ -64,7 +63,7 @@ func (h *DataHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 	// 查询端点
 	rows, err := h.db.Query(`SELECT id, name, url, apiPath, apiKey, status, color FROM "Endpoint" ORDER BY id`)
 	if err != nil {
-		slog.Error("export query endpoints", "err", err)
+		log.Errorf("export query endpoints: %v", err)
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}

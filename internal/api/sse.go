@@ -6,8 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"log/slog"
-
 	"net/http"
 	"strings"
 	"time"
@@ -188,6 +186,6 @@ func (h *SSEHandler) writeError(w http.ResponseWriter, msg string) {
 
 // loggerError 同时记录日志并返回错误
 func (h *SSEHandler) loggerError(w http.ResponseWriter, prefix string, err error) {
-	slog.Error(prefix, "err", err)
+	log.Errorf("[SSE] %v: %v", prefix, err)
 	h.writeError(w, fmt.Sprintf("%s: %v", prefix, err))
 }
