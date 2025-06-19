@@ -58,7 +58,7 @@ jobs:
             ghcr.io/${{ steps.meta.outputs.repo }}:beta
           build-args: |
             VERSION=${{ steps.vars.outputs.version }}
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
 
       - name: Output version info
         run: |
