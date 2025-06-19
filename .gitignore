@@ -55,7 +55,9 @@ node_modules/
 .next/
 .dist/
 dist/
-
+public/sqlite.db-wal
+public/sqlite.db
+public/sqlite.db-shm
 # Logs
 npm-debug.log*
 yarn-debug.log*
