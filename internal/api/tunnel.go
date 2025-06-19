@@ -70,6 +70,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		CertPath      string          `json:"certPath"`
 		KeyPath       string          `json:"keyPath"`
 		LogLevel      string          `json:"logLevel"`
+		Min           json.RawMessage `json:"min"`
+		Max           json.RawMessage `json:"max"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
@@ -81,8 +83,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 将端口解析为 int
-	parsePort := func(j json.RawMessage) (int, error) {
+	// 解析整数工具（针对 min/max 字段，允许字符串或数字）
+	parseIntField := func(j json.RawMessage) (int, error) {
 		if j == nil {
 			return 0, nil
 		}
@@ -97,13 +99,24 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return 0, strconv.ErrSyntax
 	}
 
-	tunnelPort, err1 := parsePort(raw.TunnelPort)
-	targetPort, err2 := parsePort(raw.TargetPort)
+	tunnelPort, err1 := parseIntField(raw.TunnelPort)
+	targetPort, err2 := parseIntField(raw.TargetPort)
 	if err1 != nil || err2 != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
 			Error:   "端口号格式错误，应为数字",
+		})
+		return
+	}
+
+	minVal, err3 := parseIntField(raw.Min)
+	maxVal, err4 := parseIntField(raw.Max)
+	if err3 != nil || err4 != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "min/max 参数格式错误，应为数字",
 		})
 		return
 	}
@@ -120,6 +133,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		CertPath:      raw.CertPath,
 		KeyPath:       raw.KeyPath,
 		LogLevel:      tunnel.LogLevel(raw.LogLevel),
+		Min:           minVal,
+		Max:           maxVal,
 	}
 
 	slog.Info("创建隧道请求", "name", req.Name, "endpointId", req.EndpointID, "mode", req.Mode)
@@ -508,12 +523,15 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		TCPTx         int64
 		UDPRx         int64
 		UDPTx         int64
+		Min           sql.NullInt64
+		Max           sql.NullInt64
 	}
 
 	query := `SELECT t.id, t.instanceId, t.name, t.mode, t.status, t.endpointId,
 		   e.name, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
 		   t.tunnelAddress, t.targetAddress, t.commandLine,
-		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx
+		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+		   t.min, t.max
 		   FROM "Tunnel" t
 		   LEFT JOIN "Endpoint" e ON t.endpointId = e.id
 		   WHERE t.id = ?`
@@ -536,6 +554,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.TCPTx,
 		&tunnelRecord.UDPRx,
 		&tunnelRecord.UDPTx,
+		&tunnelRecord.Min,
+		&tunnelRecord.Max,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
@@ -647,6 +667,18 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 				"tls":        tunnelRecord.TLSMode != "mode0",
 				"logLevel":   tunnelRecord.LogLevel,
 				"tlsMode":    tunnelRecord.TLSMode,
+				"min": func() interface{} {
+					if tunnelRecord.Min.Valid {
+						return tunnelRecord.Min.Int64
+					}
+					return nil
+				}(),
+				"max": func() interface{} {
+					if tunnelRecord.Max.Valid {
+						return tunnelRecord.Max.Int64
+					}
+					return nil
+				}(),
 			},
 			"traffic": map[string]int64{
 				"tcpRx": tunnelRecord.TCPRx,

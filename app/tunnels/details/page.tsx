@@ -47,6 +47,8 @@ interface TunnelInfo {
     tls: boolean;
     logLevel: string;
     tlsMode?: string;  // 添加 tlsMode 字段
+    min?: number | null;
+    max?: number | null;
   };
   traffic: {
     tcpRx: number;
@@ -966,6 +968,20 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                         </div>
                       } 
                     />
+
+                    {/* 仅客户端模式下显示 min/max */}
+                    {tunnelInfo.type === '客户端' && (
+                      <>
+                        <CellValue
+                          label="最小值 (min)"
+                          value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : ' - '}
+                        />
+                        <CellValue
+                          label="最大值 (max)"
+                          value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : ' - '}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

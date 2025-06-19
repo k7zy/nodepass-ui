@@ -79,7 +79,7 @@ func (s *Service) AddClient(clientID string, w http.ResponseWriter) {
 	}
 
 	// 记录日志
-	log.Infof("SSE客户端已添加", "clientID", clientID, "totalClients", len(s.clients))
+	log.Infof("SSE客户端已添加,clientID=%s totalClients=%d", clientID, len(s.clients))
 }
 
 // RemoveClient 移除SSE客户端
@@ -90,7 +90,7 @@ func (s *Service) RemoveClient(clientID string) {
 	delete(s.clients, clientID)
 
 	// 记录日志
-	log.Infof("SSE客户端已移除", "clientID", clientID, "remaining", len(s.clients))
+	log.Infof("SSE客户端已移除,clientID=%s remaining=%d", clientID, len(s.clients))
 
 	// 清理隧道订阅
 	for tunnelID, subs := range s.tunnelSubs {
@@ -139,7 +139,7 @@ func (s *Service) ProcessEvent(endpointID int64, event models.EndpointSSE) error
 		// 队列已满，直接开 goroutine
 		go func(ev models.EndpointSSE) {
 			if err := s.storeEvent(ev); err != nil {
-				log.Warn("降级同步存储事件失败", "err", err)
+				log.Warnf("[API.%d]降级同步存储事件失败,err=%v", endpointID, err)
 			}
 		}(event)
 	}
@@ -190,7 +190,7 @@ func (s *Service) storeWorkerLoop() {
 			return // 服务关闭
 		case ev := <-s.storeJobCh:
 			if err := s.storeEvent(ev); err != nil {
-				log.Warn("异步存储事件失败", "err", err)
+				log.Warnf("[API.%d]异步存储事件失败,err=%v", ev.EndpointID, err)
 			}
 		}
 	}
@@ -380,7 +380,7 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface
 	// 记录推送准备日志
 	payload, err := json.Marshal(data)
 	if err != nil {
-		log.Warn("序列化隧道事件失败", "err", err)
+		log.Warnf("[Tunnel.%s]序列化隧道事件失败,err=%v", instanceID, err)
 		return
 	}
 
@@ -418,7 +418,7 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface
 func (s *Service) sendGlobalUpdate(data interface{}) {
 	payload, err := json.Marshal(data)
 	if err != nil {
-		log.Warn("序列化全局事件失败", "err", err)
+		log.Warnf("序列化全局事件失败,err=%v", err)
 		return
 	}
 
@@ -453,13 +453,13 @@ func (s *Service) sendGlobalUpdate(data interface{}) {
 		s.mu.Unlock()
 	}
 
-	log.Info("全局事件已推送", "sent", sent)
+	log.Infof("全局事件已推送,sent=%d", sent)
 }
 
 // updateTunnelData 根据事件更新 Tunnel 表及 Endpoint.tunnelCount
 func (s *Service) updateTunnelData(event models.EndpointSSE) {
 	// 记录函数调用及关键字段
-	log.Debug("updateTunnelData", "eventType", event.EventType, "instanceID", event.InstanceID, "endpointID", event.EndpointID)
+	log.Debugf("[Tunnel.%s]updateTunnelData,eventType=%s instanceID=%s endpointID=%d", event.InstanceID, event.EventType, event.InstanceID, event.EndpointID)
 
 	// log 事件仅用于日志推流，无需更新隧道表
 	if event.EventType == models.SSEEventTypeLog || event.InstanceID == "" {
@@ -469,7 +469,7 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 	// 使用事务保证一致性
 	tx, err := s.db.Begin()
 	if err != nil {
-		log.Error("开始事务失败", "err", err)
+		log.Errorf("[Tunnel.%s]开始事务失败,err=%v", event.InstanceID, err)
 		return
 	}
 
@@ -494,7 +494,7 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 			// 若类型为空则跳过处理，避免回显消息写库
 			if event.InstanceType == nil || *event.InstanceType == "" {
 			} else {
-				log.Info("sse推送创建隧道实例", "instanceID", event.InstanceID, "endpointID", event.EndpointID, "instanceType", *event.InstanceType)
+				log.Infof("[Tunnel.%s]sse推送创建隧道实例,instanceType=%s", event.InstanceID, *event.InstanceType)
 				// 解析 URL 获取详细配置
 				var (
 					tunnelAddr, tunnelPort, targetAddr, targetPort, tlsMode, logLevel, commandLine string
@@ -522,9 +522,10 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					instanceId, endpointId, name, mode,
 					status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 					tlsMode, certPath, keyPath, logLevel, commandLine,
+					min, max,
 					tcpRx, tcpTx, udpRx, udpTx,
 					createdAt, updatedAt, lastEventTime
-				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 					event.InstanceID,
 					event.EndpointID,
 					event.InstanceID,
@@ -539,6 +540,18 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					cfg.KeyPath,
 					logLevel,
 					commandLine,
+					func() interface{} {
+						if cfg.Min != "" {
+							return cfg.Min
+						}
+						return nil
+					}(),
+					func() interface{} {
+						if cfg.Max != "" {
+							return cfg.Max
+						}
+						return nil
+					}(),
 					event.TCPRx,
 					event.TCPTx,
 					event.UDPRx,
@@ -548,32 +561,31 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					event.EventTime,
 				)
 				if err != nil {
-					log.Error("插入隧道记录失败", "err", err)
+					log.Errorf("[Tunnel.%s]插入隧道记录失败,err=%v", event.InstanceID, err)
 					return
 				}
-				log.Info("隧道记录已插入", "instanceID", event.InstanceID)
+				log.Infof("[Tunnel.%s]隧道记录已插入", event.InstanceID)
 			}
 		}
 	} else if err == nil {
 		// 读取当前状态以判断是否需要更新
 		var currentStatus string
 		if err := tx.QueryRow(`SELECT status FROM "Tunnel" WHERE id = ?`, tunnelID).Scan(&currentStatus); err != nil {
-			log.Warn("查询当前隧道状态失败", "err", err)
+			log.Warnf("[Tunnel.%s]查询当前隧道状态失败,err=%v", event.InstanceID, err)
 		}
 
 		if statusVal != "" && statusVal == currentStatus {
 			// 状态一致，无需更新
-			log.Debug("隧道状态未变化，跳过更新", "instanceID", event.InstanceID, "status", currentStatus)
+			log.Debugf("[Tunnel.%s]隧道状态未变化，跳过更新,status=%s", event.InstanceID, currentStatus)
 		} else {
-			log.Info("sse推送更新隧道实例", "instanceID", event.InstanceID, "endpointID", event.EndpointID, "oldStatus", currentStatus, "newStatus", statusVal)
+			log.Infof("[Tunnel.%s]sse推送更新隧道实例,oldStatus=%s newStatus=%s", event.InstanceID, currentStatus, statusVal)
 
 			// 如果是 delete 事件，直接删除记录
 			if event.EventType == models.SSEEventTypeDelete {
-				log.Info("命中删除")
 				if _, err := tx.Exec(`DELETE FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, event.EndpointID, event.InstanceID); err != nil {
-					log.Warn("删除隧道记录失败", "err", err)
+					log.Warnf("[Tunnel.%s]删除隧道记录失败,err=%v", event.InstanceID, err)
 				} else {
-					log.Info("已删除隧道记录", "endpointID", event.EndpointID, "instanceID", event.InstanceID)
+					log.Infof("[Tunnel.%s]已删除隧道记录", event.InstanceID)
 				}
 			} else {
 				// 更新已有隧道
@@ -592,13 +604,13 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 				args = append(args, event.InstanceID)
 
 				if _, err := tx.Exec(query, args...); err != nil {
-					log.Error("更新隧道记录失败", "err", err)
+					log.Errorf("[Tunnel.%s]更新隧道记录失败,err=%v", event.InstanceID, err)
 					return
 				}
 			}
 		}
 	} else {
-		log.Error("查询隧道记录失败", "err", err)
+		log.Errorf("[Tunnel.%s]查询隧道记录失败,err=%v", event.InstanceID, err)
 		return
 	}
 
@@ -607,11 +619,11 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
 	) WHERE id = ?`, event.EndpointID, event.EndpointID)
 	if err != nil {
-		log.Error("更新端点隧道计数失败", "err", err)
+		log.Errorf("[API.%d]更新端点隧道计数失败,err=%v", event.EndpointID, err)
 		return
 	}
 
-	log.Debug("端点隧道计数已刷新", "endpointID", event.EndpointID)
+	log.Debugf("[API.%d]端点隧道计数已刷新", event.EndpointID)
 
 	_ = tx.Commit()
 
@@ -628,6 +640,8 @@ type parsedURL struct {
 	LogLevel      string
 	CertPath      string
 	KeyPath       string
+	Min           string
+	Max           string
 }
 
 func parseInstanceURL(raw, mode string) parsedURL {
@@ -724,6 +738,10 @@ func parseInstanceURL(raw, mode string) parsedURL {
 				res.CertPath = val
 			case "key":
 				res.KeyPath = val
+			case "min":
+				res.Min = val
+			case "max":
+				res.Max = val
 			}
 		}
 	}
@@ -739,14 +757,14 @@ func (s *Service) handleInitialEvent(e models.EndpointSSE) {
 	}
 	cfg := parseInstanceURL(ptrString(e.URL), *e.InstanceType)
 	if err := s.withTx(func(tx *sql.Tx) error { return s.tunnelCreate(tx, e, cfg) }); err != nil {
-		log.Error("initial 创建隧道失败", "err", err)
+		log.Errorf("[Tunnel.%s]initial 创建隧道失败,err=%v", e.InstanceID, err)
 	}
 }
 
 func (s *Service) handleCreateEvent(e models.EndpointSSE) {
 	cfg := parseInstanceURL(ptrString(e.URL), *e.InstanceType)
 	if err := s.withTx(func(tx *sql.Tx) error { return s.tunnelCreate(tx, e, cfg) }); err != nil {
-		log.Error("create 创建隧道失败", "err", err)
+		log.Errorf("[Tunnel.%s]create 创建隧道失败,err=%v", e.InstanceID, err)
 	}
 }
 
@@ -755,13 +773,13 @@ func (s *Service) handleUpdateEvent(e models.EndpointSSE) {
 		cfg := parseInstanceURL(ptrString(e.URL), ptrStringDefault(e.InstanceType, ""))
 		return s.tunnelUpdate(tx, e, cfg)
 	}); err != nil {
-		log.Errorf("更新隧道失败,%v", err)
+		log.Errorf("[Tunnel.%s]更新隧道失败,err=%v", e.InstanceID, err)
 	}
 }
 
 func (s *Service) handleDeleteEvent(e models.EndpointSSE) {
 	if err := s.withTx(func(tx *sql.Tx) error { return s.tunnelDelete(tx, e.EndpointID, e.InstanceID) }); err != nil {
-		log.Errorf("删除隧道失败,%v", err)
+		log.Errorf("[Tunnel.%s]删除隧道失败,err=%v", e.InstanceID, err)
 	}
 }
 
@@ -797,20 +815,34 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	}
 
 	_, err = tx.Exec(`INSERT INTO "Tunnel" (
-		instanceId, endpointId, name, mode, status,
-		tunnelAddress, tunnelPort, targetAddress, targetPort,
+		instanceId, endpointId, name, mode,
+		status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 		tlsMode, certPath, keyPath, logLevel, commandLine,
-		tcpRx, tcpTx, udpRx, udpTx, createdAt, updatedAt, lastEventTime
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		min, max,
+		tcpRx, tcpTx, udpRx, udpTx,
+		createdAt, updatedAt, lastEventTime
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.InstanceID, e.EndpointID, name, ptrStringDefault(e.InstanceType, ""), ptrStringDefault(e.Status, "stopped"),
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
+		func() interface{} {
+			if cfg.Min != "" {
+				return cfg.Min
+			}
+			return nil
+		}(),
+		func() interface{} {
+			if cfg.Max != "" {
+				return cfg.Max
+			}
+			return nil
+		}(),
 		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, time.Now(), time.Now(), e.EventTime,
 	)
-	log.Infof("[Tunnel.%s]SSE创建隧道成功", e.InstanceID)
 	if err != nil {
 		return err
 	}
+	log.Infof("[Tunnel.%s]SSE创建隧道成功", e.InstanceID)
 
 	// 更新端点隧道计数
 	_, err = tx.Exec(`UPDATE "Endpoint" SET tunnelCount = (

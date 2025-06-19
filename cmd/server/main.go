@@ -219,6 +219,8 @@ func initDatabase(db *sql.DB) error {
 		tcpTx INTEGER DEFAULT 0,
 		udpRx INTEGER DEFAULT 0,
 		udpTx INTEGER DEFAULT 0,
+		min INTEGER,
+		max INTEGER,
 		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		lastEventTime DATETIME,
@@ -296,5 +298,42 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 
+	// ---- 旧库兼容：为 Tunnel 表添加 min / max 列 ----
+	if err := ensureColumn(db, "Tunnel", "min", "INTEGER"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Tunnel", "max", "INTEGER"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ensureColumn 若列不存在则 ALTER TABLE 添加，幂等安全
+func ensureColumn(db *sql.DB, table, column, typ string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var exists bool
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull int
+		var dfltValue interface{}
+		var pk int
+		_ = rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk)
+		if name == column {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		_, err := db.Exec(`ALTER TABLE "` + table + `" ADD COLUMN ` + column + ` ` + typ)
+		return err
+	}
 	return nil
 }

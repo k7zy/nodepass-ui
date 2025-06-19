@@ -38,6 +38,8 @@ type parsedURL struct {
 	LogLevel      string
 	CertPath      string
 	KeyPath       string
+	Min           string
+	Max           string
 }
 
 // parseInstanceURL 解析隧道实例 URL（简化实现，与 SSE 保持一致）
@@ -134,6 +136,10 @@ func parseInstanceURL(raw, mode string) parsedURL {
 				res.CertPath = val
 			case "key":
 				res.KeyPath = val
+			case "min":
+				res.Min = val
+			case "max":
+				res.Max = val
 			}
 		}
 	}
@@ -154,7 +160,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,
 			t.tunnelAddress, t.tunnelPort, t.targetAddress, t.targetPort,
 			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
-			t.status, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+			t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 			t.createdAt, t.updatedAt,
 			e.name as endpointName
 		FROM "Tunnel" t
@@ -175,11 +181,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var instanceID sql.NullString
 		var certPathNS, keyPathNS sql.NullString
 		var endpointNameNS sql.NullString
+		var minNS, maxNS sql.NullInt64
 		err := rows.Scan(
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
 			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
-			&statusStr, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
+			&statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
 		)
@@ -197,6 +204,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		}
 		if endpointNameNS.Valid {
 			t.EndpointName = endpointNameNS.String
+		}
+		if minNS.Valid {
+			t.Min = int(minNS.Int64)
+		}
+		if maxNS.Valid {
+			t.Max = int(maxNS.Int64)
 		}
 
 		t.Mode = TunnelMode(modeStr)
@@ -306,6 +319,15 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		}
 	}
 
+	if req.Mode == "client" {
+		if req.Min > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
+		}
+		if req.Max > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
+		}
+	}
+
 	if len(queryParams) > 0 {
 		commandLine += "?" + strings.Join(queryParams, "&")
 	}
@@ -332,8 +354,9 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				instanceId, name, endpointId, mode,
 				tunnelAddress, tunnelPort, targetAddress, targetPort,
 				tlsMode, certPath, keyPath, logLevel, commandLine,
+				min, max,
 				status, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			instanceID,
 			req.Name,
@@ -348,6 +371,18 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			req.KeyPath,
 			req.LogLevel,
 			commandLine,
+			func() interface{} {
+				if req.Min > 0 {
+					return req.Min
+				}
+				return nil
+			}(),
+			func() interface{} {
+				if req.Max > 0 {
+					return req.Max
+				}
+				return nil
+			}(),
 			"running",
 			now,
 			now,
@@ -406,6 +441,8 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		Status:        TunnelStatus(remoteStatus),
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		Min:           req.Min,
+		Max:           req.Max,
 	}, nil
 }
 
@@ -943,6 +980,8 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string) error {
 		CertPath:      cfg.CertPath,
 		KeyPath:       cfg.KeyPath,
 		LogLevel:      LogLevel(cfg.LogLevel),
+		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
+		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
 	}
 	_, err := s.CreateTunnel(req)
 	return err

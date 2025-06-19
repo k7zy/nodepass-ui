@@ -47,17 +47,19 @@ type Tunnel struct {
 	ID            int64        `json:"id"`
 	InstanceID    string       `json:"instanceId"`
 	Name          string       `json:"name"`
-	EndpointID    int64       `json:"endpointId"`
+	EndpointID    int64        `json:"endpointId"`
 	Mode          TunnelMode   `json:"mode"`
 	TunnelAddress string       `json:"tunnelAddress"`
-	TunnelPort    int         `json:"tunnelPort"`
+	TunnelPort    int          `json:"tunnelPort"`
 	TargetAddress string       `json:"targetAddress"`
-	TargetPort    int         `json:"targetPort"`
+	TargetPort    int          `json:"targetPort"`
 	TLSMode       TLSMode      `json:"tlsMode"`
 	CertPath      string       `json:"certPath,omitempty"`
 	KeyPath       string       `json:"keyPath,omitempty"`
 	LogLevel      LogLevel     `json:"logLevel"`
 	CommandLine   string       `json:"commandLine"`
+	Min           int          `json:"min,omitempty"`
+	Max           int          `json:"max,omitempty"`
 	Status        TunnelStatus `json:"status"`
 	CreatedAt     time.Time    `json:"createdAt"`
 	UpdatedAt     time.Time    `json:"updatedAt"`
@@ -67,17 +69,17 @@ type Tunnel struct {
 type TunnelWithStats struct {
 	Tunnel
 	Traffic struct {
-		TCPRx      int64  `json:"tcpRx"`
-		TCPTx      int64  `json:"tcpTx"`
-		UDPRx      int64  `json:"udpRx"`
-		UDPTx      int64  `json:"udpTx"`
-		Total      int64  `json:"total"`
-		Formatted  struct {
-			TCPRx  string `json:"tcpRx"`
-			TCPTx  string `json:"tcpTx"`
-			UDPRx  string `json:"udpRx"`
-			UDPTx  string `json:"udpTx"`
-			Total  string `json:"total"`
+		TCPRx     int64 `json:"tcpRx"`
+		TCPTx     int64 `json:"tcpTx"`
+		UDPRx     int64 `json:"udpRx"`
+		UDPTx     int64 `json:"udpTx"`
+		Total     int64 `json:"total"`
+		Formatted struct {
+			TCPRx string `json:"tcpRx"`
+			TCPTx string `json:"tcpTx"`
+			UDPRx string `json:"udpRx"`
+			UDPTx string `json:"udpTx"`
+			Total string `json:"total"`
 		} `json:"formatted"`
 	} `json:"traffic"`
 	EndpointName string `json:"endpoint"`
@@ -102,6 +104,8 @@ type CreateTunnelRequest struct {
 	CertPath      string   `json:"certPath,omitempty"`
 	KeyPath       string   `json:"keyPath,omitempty"`
 	LogLevel      LogLevel `json:"logLevel"`
+	Min           int      `json:"min,omitempty"`
+	Max           int      `json:"max,omitempty"`
 }
 
 // UpdateTunnelRequest 更新隧道请求
@@ -116,6 +120,8 @@ type UpdateTunnelRequest struct {
 	CertPath      string   `json:"certPath,omitempty"`
 	KeyPath       string   `json:"keyPath,omitempty"`
 	LogLevel      LogLevel `json:"logLevel,omitempty"`
+	Min           int      `json:"min,omitempty"`
+	Max           int      `json:"max,omitempty"`
 }
 
 // TunnelActionRequest 隧道操作请求
@@ -130,4 +136,4 @@ type TunnelResponse struct {
 	Message string      `json:"message,omitempty"`
 	Error   string      `json:"error,omitempty"`
 	Tunnel  interface{} `json:"tunnel,omitempty"`
-} 
+}

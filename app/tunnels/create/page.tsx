@@ -110,7 +110,9 @@ export default function CreateTunnelPage() {
     tlsMode: "inherit",
     certPath: "",
     keyPath: "",
-    logLevel: "inherit"
+    logLevel: "inherit",
+    min: "",
+    max: ""
   });
 
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -159,6 +161,11 @@ export default function CreateTunnelPage() {
         return;
       }
     }
+
+    // 对 min/max 仅允许数字
+    if (field === "min" || field === "max") {
+      if (!/^\d*$/.test(value)) return;
+    }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -204,6 +211,8 @@ export default function CreateTunnelPage() {
           certPath: formData.certPath || undefined,
           keyPath: formData.keyPath || undefined,
           logLevel: formData.logLevel,
+          min: formData.mode === 'client' && formData.min ? formData.min : undefined,
+          max: formData.mode === 'client' && formData.max ? formData.max : undefined,
         }),
       });
 
@@ -573,6 +582,31 @@ export default function CreateTunnelPage() {
         </Card>
       )}
 
+      {/* 客户端专用 min/max 设置 */}
+      {formData.mode === 'client' && (
+        <Card className="p-2 shadow-none border-2 border-default-200">
+          <CardHeader>
+            <h2 className="text-xl font-semibold">客户端参数</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody className="p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="连接池的最小容量"
+                placeholder="64"
+                value={formData.min}
+                onChange={(e) => handleInputChange('min', e.target.value)}
+              />
+              <Input
+                label="连接池的最大容量"
+                placeholder="8192"
+                value={formData.max}
+                onChange={(e) => handleInputChange('max', e.target.value)}
+              />
+            </div>
+          </CardBody>
+        </Card>
+      )}
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
           <h2 className="text-xl font-semibold">配置摘要</h2>
@@ -592,6 +626,9 @@ export default function CreateTunnelPage() {
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "inherit" ? "继承主控设置" : formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
                 }
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {formData.logLevel === "inherit" ? "继承主控设置" : formData.logLevel.toUpperCase()}</p>
+                {formData.mode === "client" && (formData.min || formData.max) && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池容量：</span> {formData.min || '默认(64)'} ~ {formData.max || '默认(8192)'}</p>
+                )}
               </div>
             </CardBody>
           </Card>
@@ -599,24 +636,33 @@ export default function CreateTunnelPage() {
             <CardBody>
               <h3 className="text-lg font-semibold mb-4">等效命令行</h3>
               <Snippet>
-                {`${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}${
-                  formData.mode === "server" 
-                    ? `${formData.logLevel !== "inherit" || formData.tlsMode !== "inherit" ? "?" : ""}${
-                        formData.logLevel !== "inherit" ? `log=${formData.logLevel}` : ""
-                      }${
-                        formData.tlsMode !== "inherit" 
-                          ? `${formData.logLevel !== "inherit" ? "&" : ""}tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}${
-                              formData.tlsMode === "mode2" ? `&crt=${formData.certPath}&key=${formData.keyPath}` : ""
-                            }`
-                          : ""
-                      }`
-                    : `${formData.logLevel !== "inherit" ? "?log=" + formData.logLevel : ""}`
-                }`}
+                {(() => {
+                  const base = `${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}`;
+                  if (formData.mode === "server") {
+                    const params: string[] = [];
+                    if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
+                    if (formData.tlsMode !== "inherit") {
+                      params.push(`tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}`);
+                      if (formData.tlsMode === "mode2") {
+                        params.push(`crt=${formData.certPath}`);
+                        params.push(`key=${formData.keyPath}`);
+                      }
+                    }
+                    return params.length ? `${base}?${params.join("&")}` : base;
+                  } else {
+                    const params: string[] = [];
+                    if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
+                    if (formData.min) params.push(`min=${formData.min}`);
+                    if (formData.max) params.push(`max=${formData.max}`);
+                    return params.length ? `${base}?${params.join("&")}` : base;
+                  }
+                })()}
               </Snippet>
             </CardBody>
           </Card>
         </CardBody>
       </Card>
+
 
       <div className="flex justify-end gap-3">
         <Button
