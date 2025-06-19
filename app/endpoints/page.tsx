@@ -20,7 +20,16 @@ import {
   Dropdown,
   DropdownTrigger,
   DropdownMenu,
-  DropdownItem
+  DropdownItem,
+  Tabs,
+  Tab,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Tooltip
 } from "@heroui/react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -44,7 +53,9 @@ import {
   faWifi,
   faSpinner,
   faCopy,
-  faEllipsisVertical
+  faEllipsisVertical,
+  faGrip,
+  faTable
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
@@ -99,6 +110,23 @@ export default function EndpointsPage() {
   const [selectedEndpoint, setSelectedEndpoint] = useState<FormattedEndpoint | null>(null);
   // Next.js 路由
   const router = useRouter();
+  // 视图模式：card | table，初始化时从 localStorage 读取
+  const [viewMode, setViewMode] = useState<'card' | 'table'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('endpointsViewMode');
+      if (saved === 'card' || saved === 'table') {
+        return saved;
+      }
+    }
+    return 'card';
+  });
+
+  // 当 viewMode 变化时写入 localStorage，保持持久化
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('endpointsViewMode', viewMode);
+    }
+  }, [viewMode]);
 
   // 获取主控列表
   const fetchEndpoints = async () => {
@@ -646,18 +674,18 @@ export default function EndpointsPage() {
 
   return (
     <div className="max-w-7xl mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 md:gap-0">
+        <div className="flex items-center gap-2 md:gap-4">
           <h1 className="text-2xl font-bold">API 主控管理</h1>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button 
             variant="light"
             className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
             startContent={<FontAwesomeIcon icon={faCopy} />}
             onPress={handleCopyInstallScript}
           >
-            复制安装脚本
+            安装脚本
           </Button>
           <Button 
             variant="light"
@@ -667,13 +695,23 @@ export default function EndpointsPage() {
               >
               刷新
           </Button>
+          <Tabs
+            selectedKey={viewMode}
+            onSelectionChange={(key)=>setViewMode(key as 'card' | 'table')}
+            aria-label="布局切换"
+            className="w-auto"
+          >
+            <Tab key="card" title={<FontAwesomeIcon icon={faGrip} />} />
+            <Tab key="table" title={<FontAwesomeIcon icon={faTable} />} />
+          </Tabs>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
-          // Skeleton 加载状态
-          Array.from({ length: 6 }, (_, index) => (
+      {/* 根据视图模式渲染不同内容 */}
+      {loading ? (
+        /* Skeleton 加载状态 */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }, (_, index) => (
             <Card 
               key={index} 
               className="relative w-full h-[200px]"
@@ -712,14 +750,18 @@ export default function EndpointsPage() {
                 </div>
               </CardFooter>
             </Card>
-          ))
-        ) : (
-          endpoints.map(endpoint => {
+          ))}
+        </div>
+      ) : viewMode === 'card' ? (
+        /* 卡片布局 */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {endpoints.map(endpoint => {
             const isExpanded = expandedCard === endpoint.id;
             const realTimeData = getEndpointDisplayData(endpoint);
             
             return (
               <Card 
+                as="div"
                 key={endpoint.id} 
                 isPressable
                 onPress={() => router.push(`/endpoints/details?id=${endpoint.id}`)}
@@ -748,9 +790,6 @@ export default function EndpointsPage() {
                     <h2 className="inline bg-gradient-to-br from-foreground-800 to-foreground-500 bg-clip-text text-2xl font-semibold tracking-tight text-transparent dark:to-foreground-200">
                       {endpoint.name}
                     </h2>
-                    {/* <span className="inline-flex items-center px-2 py-1 text-xs font-normal rounded-md bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                      {endpoint.apiPath}
-                    </span> */}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-default-400">
@@ -767,7 +806,7 @@ export default function EndpointsPage() {
                         }}
                       />
                       <span className="text-small font-mono flex-1 truncate">
-                        {showApiKey[endpoint.id] ? endpoint.apiKey : "••••••••••••••••••••••••••"}
+                        {showApiKey[endpoint.id] ? endpoint.apiKey : "•••••••••••••••••••••••••••••••••"}
                       </span>
                     </div>
                   </div>
@@ -787,12 +826,11 @@ export default function EndpointsPage() {
                 </CardFooter>
               </Card>
             );
-          })
-        )}
+          })}
 
-        {/* 添加主控卡片 - 仅在非加载状态下显示 */}
-        {!loading && (
+          {/* 添加主控卡片 - 仅在非加载状态下显示 */}
           <Card 
+            as="div"
             className="relative w-full h-[200px] cursor-pointer hover:shadow-lg transition-shadow border-2 border-dashed border-default-300 hover:border-primary"
             isPressable
             onPress={() => onAddOpen()}
@@ -809,9 +847,100 @@ export default function EndpointsPage() {
               </div>
             </CardBody>
           </Card>
-        )}
-      </div>
-
+        </div>
+      ) : (
+        /* 表格布局 */
+        <Table aria-label="API 主控列表"  className="mt-4">
+          <TableHeader>
+            <TableColumn key="id">ID</TableColumn>
+            <TableColumn key="name" className="min-w-[140px]">名称</TableColumn>
+            <TableColumn key="url" className="min-w-[200px]">URL</TableColumn>
+            <TableColumn key="apikey" className="min-w-[220px]">API Key</TableColumn>
+            <TableColumn key="actions" className="w-44">操作</TableColumn>
+          </TableHeader>
+          <TableBody>
+            {endpoints.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-4">暂无主控数据</TableCell>
+              </TableRow>
+            ) : (
+              endpoints.map((ep) => {
+                const realTimeData = getEndpointDisplayData(ep);
+                return (
+                  <TableRow key={ep.id}>
+                    <TableCell>{ep.id}</TableCell>
+                    <TableCell className="truncate min-w-[140px]">
+                      <span className={
+                        `inline-block w-2 h-2 rounded-full mr-2 ${
+                          realTimeData.status === 'ONLINE' ? 'bg-success-500' :
+                          realTimeData.status === 'FAIL' ? 'bg-danger-500' : 'bg-warning-500'
+                        }`
+                      } />
+                      {ep.name}&nbsp;
+                      [{realTimeData.tunnelCount}实例]
+                    </TableCell>
+                    <TableCell className="truncate min-w-[200px]">{ep.url}{ep.apiPath}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono truncate">
+                          {showApiKey[ep.id] ? ep.apiKey : '•••••••••••••••••••••••••••••••••'}
+                        </span>
+                        <FontAwesomeIcon 
+                          icon={showApiKey[ep.id] ? faEyeSlash : faEye} 
+                          className="text-xs cursor-pointer hover:text-primary" 
+                          onClick={(e)=>{e.stopPropagation(); toggleApiKeyVisibility(ep.id);}}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className="w-44">
+                      <div className="flex items-center gap-1 justify-start">
+                        {/* 添加实例 */}
+                        <Tooltip content="添加实例">
+                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleAddTunnel(ep)} color="primary">
+                            <FontAwesomeIcon icon={faPlus} />
+                          </Button>
+                        </Tooltip>
+                        {/* 刷新实例 */}
+                        <Tooltip content="强刷实例">
+                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleRefreshTunnels(ep.id)} color="default">
+                            <FontAwesomeIcon icon={faRotateRight} />
+                          </Button>
+                        </Tooltip>
+                        {/* 重命名 */}
+                        <Tooltip content="重命名"> 
+                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleCardClick(ep)}>
+                            <FontAwesomeIcon icon={faPen} />
+                          </Button>
+                        </Tooltip>
+                        {/* 复制配置 */}
+                        <Tooltip content="复制配置">
+                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleCopyConfig(ep)} color="secondary">
+                            <FontAwesomeIcon icon={faCopy} />
+                          </Button>
+                        </Tooltip>
+                        {/* 连接 / 断开 */}
+                        <Tooltip content={realTimeData.status==='ONLINE' ? '断开连接' : '连接主控'}>
+                          <Button isIconOnly size="sm" variant="light" color={realTimeData.status==='ONLINE' ? 'warning' : 'success'} onPress={()=>{
+                            if(realTimeData.status==='ONLINE') handleDisconnect(ep.id); else handleConnect(ep.id);
+                          }}>
+                            <FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug} />
+                          </Button>
+                        </Tooltip>
+                        {/* 删除 */}
+                        <Tooltip content="删除主控">
+                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={()=>handleDeleteClick(ep)}>
+                            <FontAwesomeIcon icon={faTrash} />
+                          </Button>
+                        </Tooltip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      )}
       {/* 添加主控模态框 */}
       <AddEndpointModal
         isOpen={isAddOpen}

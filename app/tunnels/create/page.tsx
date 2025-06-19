@@ -262,7 +262,8 @@ export default function CreateTunnelPage() {
           <h2 className="text-xl font-semibold">选择 API 主控</h2>
           <Button
             isIconOnly
-            variant="faded"
+            variant="light"
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
             size="sm"
             onClick={() => setLayout(layout === "card" ? "list" : "card")}
           >
