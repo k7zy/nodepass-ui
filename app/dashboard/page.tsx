@@ -182,8 +182,8 @@ export default function DashboardPage() {
     try {
       const response = await fetch(buildApiUrl('/api/dashboard/logs?limit=50'));
       if (!response.ok) throw new Error('获取操作日志失败');
-      const data: OperationLog[] = await response.json();
-      setOperationLogs(data);
+      const data: OperationLog[] | null = await response.json();
+      setOperationLogs(data ?? []);
     } catch (error) {
       console.error('获取操作日志失败:', error);
     }
@@ -198,10 +198,11 @@ export default function DashboardPage() {
       
       const result = await response.json();
       if (result.success) {
-        setTrafficTrend(result.data);
+        const trendData = Array.isArray(result.data) ? result.data : [];
+        setTrafficTrend(trendData);
         console.log('[仪表盘前端] 流量趋势数据获取成功:', {
-          数据条数: result.data.length,
-          示例数据: result.data.slice(0, 3)
+          数据条数: trendData.length,
+          示例数据: trendData.slice(0, 3)
         });
       } else {
         throw new Error(result.error || '获取流量趋势数据失败');

@@ -24,7 +24,7 @@ import (
 
 func main() {
 	// 打开数据库连接
-	db, err := sql.Open("sqlite3", "./public/sqlite.db")
+	db, err := sql.Open("sqlite3", "/tmp/sqlite.db")
 	if err != nil {
 		log.Fatalf("连接数据库失败: %v", err)
 	}

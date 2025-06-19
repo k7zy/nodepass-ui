@@ -31,7 +31,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             </main>
             <footer className="w-full flex items-center justify-center py-3">
               <div className="text-default-600 text-sm">
-              NodePassDash © 2025 | v{pkg.version} | 由 <a href="https://github.com/yosebyte/nodepass" target="_blank" className="text-blue-500 hover:text-blue-600">NodePass</a> 驱动
+              NodePass © 2025 | v{pkg.version} | 由 <a href="https://github.com/yosebyte/nodepass" target="_blank" className="text-blue-500 hover:text-blue-600">NodePass</a> 驱动
               </div>
             </footer>
           </div>
