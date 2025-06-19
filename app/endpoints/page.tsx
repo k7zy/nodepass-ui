@@ -55,7 +55,8 @@ import {
   faCopy,
   faEllipsisVertical,
   faGrip,
-  faTable
+  faTable,
+  faFileLines
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
@@ -856,15 +857,30 @@ export default function EndpointsPage() {
             <TableColumn key="name" className="min-w-[140px]">名称</TableColumn>
             <TableColumn key="url" className="min-w-[200px]">URL</TableColumn>
             <TableColumn key="apikey" className="min-w-[220px]">API Key</TableColumn>
-            <TableColumn key="actions" className="w-44">操作</TableColumn>
+            <TableColumn key="actions" className="w-52">操作</TableColumn>
           </TableHeader>
           <TableBody>
             {endpoints.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-4">暂无主控数据</TableCell>
-              </TableRow>
+              <>
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-4">暂无主控数据</TableCell>
+                </TableRow>
+                <TableRow key="add-row-empty">
+                  <TableCell colSpan={5}>
+                    <Button
+                      variant="light"
+                      className="w-full border-2 border-dashed border-default-300 hover:border-primary"
+                      onPress={onAddOpen}
+                    >
+                      <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                      添加 API 主控
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              </>
             ) : (
-              endpoints.map((ep) => {
+              <>
+              {endpoints.map((ep) => {
                 const realTimeData = getEndpointDisplayData(ep);
                 return (
                   <TableRow key={ep.id}>
@@ -892,8 +908,14 @@ export default function EndpointsPage() {
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="w-44">
+                    <TableCell className="w-52">
                       <div className="flex items-center gap-1 justify-start">
+                        {/* 查看详情 */}
+                        <Tooltip content="查看详情">
+                          <Button isIconOnly size="sm" variant="light" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
+                            <FontAwesomeIcon icon={faFileLines} />
+                          </Button>
+                        </Tooltip>
                         {/* 添加实例 */}
                         <Tooltip content="添加实例">
                           <Button isIconOnly size="sm" variant="light" onPress={()=>handleAddTunnel(ep)} color="primary">
@@ -936,7 +958,21 @@ export default function EndpointsPage() {
                     </TableCell>
                   </TableRow>
                 );
-              })
+              })}
+              {/* 添加主控行 */}
+              <TableRow key="add-row">
+                <TableCell colSpan={5}>
+                  <Button
+                    variant="light"
+                    className="w-full border-2 border-dashed border-default-300 hover:border-primary"
+                    onPress={onAddOpen}
+                  >
+                    <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                    添加 API 主控
+                  </Button>
+                </TableCell>
+              </TableRow>
+              </>
             )}
           </TableBody>
         </Table>

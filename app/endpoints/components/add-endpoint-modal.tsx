@@ -231,7 +231,7 @@ export default function AddEndpointModal({
                     name="url"
                     label="URL 地址"
                     labelPlacement="outside"
-                    placeholder="http://example.com:9090/api/v1"
+                    placeholder="http(s)://example.com:9090/api/v1"
                     type="url"
                     description="API 服务器的完整 URL（包含 API 前缀路径）"
                     value={formData.url}

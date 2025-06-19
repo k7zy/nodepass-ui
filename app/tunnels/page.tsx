@@ -561,8 +561,8 @@ export default function TunnelsPage() {
                       <FontAwesomeIcon icon={faEye} className="text-2xl text-default-400" />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-default-500 text-sm font-medium">暂无实例实例</p>
-                      <p className="text-default-400 text-xs">您还没有创建任何实例实例</p>
+                      <p className="text-default-500 text-sm font-medium">暂无实例</p>
+                      <p className="text-default-400 text-xs">您还没有创建任何实例</p>
                     </div>
                   </div>
                 </div>
@@ -724,8 +724,8 @@ export default function TunnelsPage() {
                             <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
                           </div>
                           <div className="space-y-2">
-                            <p className="text-default-500 text-base font-medium">暂无实例实例</p>
-                            <p className="text-default-400 text-sm">您还没有创建任何实例实例</p>
+                            <p className="text-default-500 text-base font-medium">暂无实例</p>
+                            <p className="text-default-400 text-sm">您还没有创建任何实例</p>
                           </div>
                         </div>
                       </div>
