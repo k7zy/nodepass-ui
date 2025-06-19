@@ -841,7 +841,7 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 // DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
 // 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
 // timeout 为等待的最长时长
-func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration) error {
+func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, recycle bool) error {
 	log.Infof("[Req] 删除隧道: %v", instanceID)
 	// 获取隧道及端点信息（与 DeleteTunnel 中相同，但不删除本地记录）
 	var tunnel struct {
@@ -867,6 +867,16 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration) 
 	if err := s.db.QueryRow(`SELECT url, apiPath, apiKey FROM "Endpoint" WHERE id = ?`, tunnel.EndpointID).
 		Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		return err
+	}
+
+	// 在删除之前，如选择移入回收站，则先复制记录
+	if recycle {
+		_, _ = s.db.Exec(`INSERT INTO "TunnelRecycle" (
+			name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
+			certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+		) SELECT name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
+			certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+		FROM "Tunnel" WHERE instanceId = ?`, instanceID)
 	}
 
 	// 调用 NodePass API 删除实例

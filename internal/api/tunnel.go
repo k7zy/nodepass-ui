@@ -165,8 +165,17 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 
 	var req struct {
 		InstanceID string `json:"instanceId"`
+		Recycle    bool   `json:"recycle"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req) // 即使失败也无妨，后续再判断
+
+	// 兼容前端使用 query 参数 recycle=1
+	if !req.Recycle {
+		q := r.URL.Query().Get("recycle")
+		if q == "1" || strings.ToLower(q) == "true" {
+			req.Recycle = true
+		}
+	}
 
 	// 如果未提供 instanceId ，则尝试从路径参数中解析数据库 id
 	if req.InstanceID == "" {
@@ -196,7 +205,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 3*time.Second); err != nil {
+	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 3*time.Second, req.Recycle); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,

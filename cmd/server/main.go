@@ -227,6 +227,31 @@ func initDatabase(db *sql.DB) error {
 		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
 	);`
 
+	createTunnelRecycleTable := `
+	CREATE TABLE IF NOT EXISTS "TunnelRecycle" (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		endpointId INTEGER NOT NULL,
+		mode TEXT NOT NULL,
+		tunnelAddress TEXT NOT NULL,
+		tunnelPort TEXT NOT NULL,
+		targetAddress TEXT NOT NULL,
+		targetPort TEXT NOT NULL,
+		tlsMode TEXT NOT NULL,
+		certPath TEXT,
+		keyPath TEXT,
+		logLevel TEXT NOT NULL DEFAULT 'info',
+		commandLine TEXT NOT NULL,
+		instanceId TEXT,
+		tcpRx INTEGER DEFAULT 0,
+		tcpTx INTEGER DEFAULT 0,
+		udpRx INTEGER DEFAULT 0,
+		udpTx INTEGER DEFAULT 0,
+		min INTEGER,
+		max INTEGER,
+		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
+	);`
+
 	createEndpointSSE := `
 	CREATE TABLE IF NOT EXISTS "EndpointSSE" (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -283,6 +308,9 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 	if _, err := db.Exec(createTunnelTable); err != nil {
+		return err
+	}
+	if _, err := db.Exec(createTunnelRecycleTable); err != nil {
 		return err
 	}
 	if _, err := db.Exec(createEndpointSSE); err != nil {

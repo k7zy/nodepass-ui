@@ -86,6 +86,9 @@ export default function TunnelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
 
+  // 是否移入回收站
+  const [moveToRecycle, setMoveToRecycle] = useState(false);
+
   // 获取实例列表
   const fetchTunnels = async () => {
     try {
@@ -268,12 +271,14 @@ export default function TunnelsPage() {
         instanceId: deleteModalTunnel.instanceId || '',
         tunnelName: deleteModalTunnel.name,
         redirectAfterDelete: false,
+        recycle: moveToRecycle,
         onSuccess: () => {
           fetchTunnels();
         }
       });
     }
     onOpenChange();
+    setMoveToRecycle(false);
   };
 
   // 添加修改名称的处理函数
@@ -801,6 +806,18 @@ export default function TunnelsPage() {
                     <p className="text-small text-warning">
                       ⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。
                     </p>
+                    {/* 选择是否移入回收站 */}
+                    <div className="pt-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-4 w-4 text-primary"
+                          checked={moveToRecycle}
+                          onChange={(e) => setMoveToRecycle(e.target.checked)}
+                        />
+                        <span>删除后移入回收站</span>
+                      </label>
+                    </div>
                   </>
                 )}
               </ModalBody>

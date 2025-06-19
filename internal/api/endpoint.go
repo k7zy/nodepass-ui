@@ -684,7 +684,10 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 
 	db := h.endpointService.DB()
 
-	rows, err := db.Query(`SELECT id, name, createdAt, deletedAt, commandLine FROM "Tunnel" WHERE endpointId = ? AND status = 'deleted' ORDER BY deletedAt DESC`, endpointID)
+	// 查询 TunnelRecycle 表所有字段
+	rows, err := db.Query(`SELECT id, name, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
+		certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+		FROM "TunnelRecycle" WHERE endpointId = ? ORDER BY id DESC`, endpointID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
@@ -692,25 +695,36 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 	}
 	defer rows.Close()
 
-	list := make([]map[string]interface{}, 0)
+	type recycleItem struct {
+		ID            int64          `json:"id"`
+		Name          string         `json:"name"`
+		Mode          string         `json:"mode"`
+		TunnelAddress string         `json:"tunnelAddress"`
+		TunnelPort    string         `json:"tunnelPort"`
+		TargetAddress string         `json:"targetAddress"`
+		TargetPort    string         `json:"targetPort"`
+		TLSMode       string         `json:"tlsMode"`
+		CertPath      sql.NullString `json:"certPath"`
+		KeyPath       sql.NullString `json:"keyPath"`
+		LogLevel      string         `json:"logLevel"`
+		CommandLine   string         `json:"commandLine"`
+		InstanceID    sql.NullString `json:"instanceId"`
+		TCPRx         int64          `json:"tcpRx"`
+		TCPTx         int64          `json:"tcpTx"`
+		UDPRx         int64          `json:"udpRx"`
+		UDPTx         int64          `json:"udpTx"`
+		Min           sql.NullInt64  `json:"min"`
+		Max           sql.NullInt64  `json:"max"`
+	}
+
+	list := make([]recycleItem, 0)
 	for rows.Next() {
-		var id int64
-		var name string
-		var createdAt, deletedAt time.Time
-		var cmdLine sql.NullString
-		if err := rows.Scan(&id, &name, &createdAt, &deletedAt, &cmdLine); err == nil {
-			list = append(list, map[string]interface{}{
-				"id":        id,
-				"name":      name,
-				"createdAt": createdAt.Format("2006-01-02 15:04:05"),
-				"deletedAt": deletedAt.Format("2006-01-02 15:04:05"),
-				"commandLine": func() string {
-					if cmdLine.Valid {
-						return cmdLine.String
-					}
-					return ""
-				}(),
-			})
+		var item recycleItem
+		if err := rows.Scan(
+			&item.ID, &item.Name, &item.Mode, &item.TunnelAddress, &item.TunnelPort, &item.TargetAddress, &item.TargetPort, &item.TLSMode,
+			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
+		); err == nil {
+			list = append(list, item)
 		}
 	}
 
@@ -734,13 +748,82 @@ func (h *EndpointHandler) HandleRecycleCount(w http.ResponseWriter, r *http.Requ
 
 	db := h.endpointService.DB()
 	var count int
-	err = db.QueryRow(`SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ? AND status = 'deleted'`, endpointID).Scan(&count)
+	err = db.QueryRow(`SELECT COUNT(*) FROM "TunnelRecycle" WHERE endpointId = ?`, endpointID).Scan(&count)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]interface{}{"count": count})
+}
+
+// HandleRecycleDelete 删除回收站记录并清空相关 SSE (DELETE /api/endpoints/{endpointId}/recycle/{recycleId})
+func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	epStr := vars["endpointId"]
+	recStr := vars["recycleId"]
+
+	endpointID, err1 := strconv.ParseInt(epStr, 10, 64)
+	recycleID, err2 := strconv.ParseInt(recStr, 10, 64)
+	if err1 != nil || err2 != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的ID"})
+		return
+	}
+
+	db := h.endpointService.DB()
+
+	// 获取 instanceId
+	var instanceNS sql.NullString
+	err := db.QueryRow(`SELECT instanceId FROM "TunnelRecycle" WHERE id = ? AND endpointId = ?`, recycleID, endpointID).Scan(&instanceNS)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "记录不存在"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	// 删除 TunnelRecycle 记录
+	if _, err := tx.Exec(`DELETE FROM "TunnelRecycle" WHERE id = ?`, recycleID); err != nil {
+		tx.Rollback()
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	// 删除 EndpointSSE 记录
+	if instanceNS.Valid {
+		if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ?`, endpointID, instanceNS.String); err != nil {
+			tx.Rollback()
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 }
 
 // refreshTunnels 同步指定端点的隧道信息

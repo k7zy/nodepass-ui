@@ -10,6 +10,7 @@ export interface TunnelActionOptions {
   onStatusChange?: (tunnelId: string, isRunning: boolean) => void;
   redirectAfterDelete?: boolean;
   onSuccess?: () => void;
+  recycle?: boolean;
 }
 
 export const useTunnelActions = () => {
@@ -130,7 +131,7 @@ export const useTunnelActions = () => {
   };
 
   const deleteTunnel = async (options: TunnelActionOptions) => {
-    const { tunnelId, tunnelName, instanceId, redirectAfterDelete = true, onSuccess } = options;
+    const { tunnelId, tunnelName, instanceId, redirectAfterDelete = true, onSuccess, recycle = false } = options;
     
     try {
       addToast({
@@ -138,7 +139,7 @@ export const useTunnelActions = () => {
         title: "正在删除实例...",
         description: tunnelName ? `删除 ${tunnelName}` : "请稍候",
         color: "primary",
-        promise: fetch(buildApiUrl(`/api/tunnels/${tunnelId}`), {
+        promise: fetch(buildApiUrl(`/api/tunnels/${tunnelId}` + (recycle ? '?recycle=1' : '')), {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
