@@ -21,11 +21,14 @@ import {
   faStop,
   faPlay,
   faRotateRight,
-  faTrash
+  faTrash,
+  faBolt
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
 import { addToast } from "@heroui/toast";
+import QuickCreateTunnelModal from "./quick-create-tunnel-modal";
+import { ButtonGroup } from "@heroui/react";
 
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 
@@ -63,6 +66,9 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   const router = useRouter();
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(true);
+
+  // 快速创建模态
+  const [isQuickOpen, setIsQuickOpen] = useState(false);
 
   useEffect(() => {
     const fetchEndpoints = async () => {
@@ -234,19 +240,39 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <span className="hidden sm:inline">刷新</span>
             <span className="sm:hidden">刷新</span>
           </Button>
-          <Button 
-            color="primary" 
-            size="sm"
-            className="md:text-sm"
-            startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faPlus} />}
-            onClick={() => router.push("/tunnels/create")}
-            isDisabled={loading}
-          >
-            <span className="hidden sm:inline">创建实例</span>
-            <span className="sm:hidden">创建</span>
-          </Button>
+          {/* 创建按钮组 */}
+          <ButtonGroup radius="sm">
+            <Button 
+              color="primary" 
+              size="sm"
+              className="md:text-sm"
+              startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faPlus} />}
+              onClick={() => router.push("/tunnels/create")}
+              isDisabled={loading}
+            >
+              <span className="hidden sm:inline">创建实例</span>
+              <span className="sm:hidden">创建</span>
+            </Button>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="flat"
+              color="primary"
+              onClick={() => setIsQuickOpen(true)}
+              isDisabled={loading}
+            >
+              <FontAwesomeIcon icon={faBolt} />
+            </Button>
+          </ButtonGroup>
         </Flex>
       </div>
+
+      {/* 快速创建实例弹窗 */}
+      <QuickCreateTunnelModal
+        isOpen={isQuickOpen}
+        onOpenChange={setIsQuickOpen}
+        onCreated={onRefresh}
+      />
     </div>
   );
 };
