@@ -605,10 +605,12 @@ export default function EndpointsPage() {
   // 打开添加隧道弹窗
   const {isOpen: isAddTunnelOpen, onOpen: onAddTunnelOpen, onOpenChange: onAddTunnelOpenChange} = useDisclosure();
   const [tunnelUrl, setTunnelUrl] = useState('');
+  const [tunnelName, setTunnelName] = useState('');
 
   function handleAddTunnel(endpoint: FormattedEndpoint) {
     setSelectedEndpoint(endpoint);
     setTunnelUrl('');
+    setTunnelName('');
     onAddTunnelOpen();
   }
 
@@ -623,7 +625,7 @@ export default function EndpointsPage() {
       const res = await fetch(buildApiUrl('/api/tunnels/quick'), {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({endpointId: selectedEndpoint.id, url: tunnelUrl.trim()})
+        body: JSON.stringify({endpointId: selectedEndpoint.id, url: tunnelUrl.trim(), name: tunnelName.trim()})
       });
       const data = await res.json();
       if(!res.ok || !data.success){
@@ -1013,13 +1015,20 @@ export default function EndpointsPage() {
         <ModalContent>
           {(onClose)=> (
             <>
-              <ModalHeader>添加隧道</ModalHeader>
+              <ModalHeader>添加实例</ModalHeader>
               <ModalBody>
-                <Input
-                  placeholder="<core>://<tunnel_addr>/<target_addr>"
-                  value={tunnelUrl}
-                  onValueChange={setTunnelUrl}
-                />
+                <div className="space-y-3">
+                  <Input
+                    placeholder="实例名称"
+                    value={tunnelName}
+                    onValueChange={setTunnelName}
+                  />
+                  <Input
+                    placeholder="<core>://<tunnel_addr>/<target_addr>"
+                    value={tunnelUrl}
+                    onValueChange={setTunnelUrl}
+                  />
+                </div>
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>取消</Button>

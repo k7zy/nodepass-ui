@@ -5,9 +5,10 @@ import {
   Button,
   Card,
   CardBody,
+  Badge
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faRotateRight, faTrash, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from "@/lib/utils";
@@ -21,6 +22,7 @@ export default function EndpointDetailPage() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [refreshLoading, setRefreshLoading] = useState(false);
+  const [recycleCount, setRecycleCount] = useState<number>(0);
 
   const logCounterRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -61,9 +63,24 @@ export default function EndpointDetailPage() {
     }
   }, [endpointId, scrollToBottom]);
 
+  // 获取回收站数量
+  const fetchRecycleCount = useCallback(async()=>{
+    if(!endpointId) return;
+    try{
+      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/recycle/count`));
+      if(!res.ok) throw new Error("获取回收站数量失败");
+      const data = await res.json();
+      setRecycleCount(data.count || 0);
+    }catch(e){ console.error(e); }
+  },[endpointId]);
+
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  useEffect(() => {
+    fetchRecycleCount();
+  }, [fetchRecycleCount]);
 
   // 滚动效果
   useEffect(() => {
@@ -85,11 +102,12 @@ export default function EndpointDetailPage() {
       {/* 顶部返回按钮 */}
       <div className="flex items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
-        <Button isIconOnly variant="flat" size="sm" onClick={() => router.back()} className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20">
-          <FontAwesomeIcon icon={faArrowLeft} />
-        </Button>
-        <h1 className="text-lg md:text-2xl font-bold truncate">主控日志</h1>
+          <Button isIconOnly variant="flat" size="sm" onClick={() => router.back()} className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20">
+            <FontAwesomeIcon icon={faArrowLeft} />
+          </Button>
+          <h1 className="text-lg md:text-2xl font-bold truncate">主控日志</h1>
         </div>
+        <div className="flex items-center gap-2">
         <Button 
             variant="light"
             isDisabled={refreshLoading}
@@ -104,6 +122,28 @@ export default function EndpointDetailPage() {
               >
               {refreshLoading ? "刷新中..." : "刷新"}
           </Button>
+        {/* 回收站按钮 */}
+        <Button
+          isIconOnly
+          color="danger"
+          variant="light"
+          className="relative bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+          onPress={()=>router.push(`/endpoints/recycle?id=${endpointId}`)}
+        >
+          <Badge color="danger" size="sm"  content={recycleCount?recycleCount:0} className="absolute -top-1 -right-1 pointer-events-none">
+            <FontAwesomeIcon icon={faTrash} />
+          </Badge>
+        </Button>
+
+        {/* 日志查询按钮 */}
+        <Button
+          isIconOnly
+          color="primary"
+          onPress={()=>router.push(`/endpoints/log?id=${endpointId}`)}
+        >
+          <FontAwesomeIcon icon={faMagnifyingGlass} />
+        </Button>
+        </div>
       </div>
 
       {/* 日志区域 */}

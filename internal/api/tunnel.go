@@ -837,6 +837,7 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 	var req struct {
 		EndpointID int64  `json:"endpointId"`
 		URL        string `json:"url"`
+		Name       string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -847,16 +848,16 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if req.EndpointID == 0 || req.URL == "" {
+	if req.EndpointID == 0 || req.URL == "" || strings.TrimSpace(req.Name) == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
-			Error:   "endpointId 和 url 均不能为空",
+			Error:   "endpointId、url、name 均不能为空",
 		})
 		return
 	}
 
-	if err := h.tunnelService.QuickCreateTunnel(req.EndpointID, req.URL); err != nil {
+	if err := h.tunnelService.QuickCreateTunnel(req.EndpointID, req.URL, req.Name); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,

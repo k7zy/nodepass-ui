@@ -512,6 +512,237 @@ func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// HandleSearchEndpointLogs GET /api/endpoints/{id}/logs/search
+// 支持查询条件: level, instanceId, start, end, page, size
+func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	if idStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少端点ID"})
+		return
+	}
+	endpointID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		return
+	}
+
+	q := r.URL.Query()
+	level := strings.ToLower(q.Get("level"))
+	instanceID := q.Get("instanceId")
+	start := q.Get("start")
+	end := q.Get("end")
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	size, _ := strconv.Atoi(q.Get("size"))
+	if size <= 0 {
+		size = 20
+	}
+
+	// 如果仅提供日期(yyyy-mm-dd)，转换为起止时间字符串
+	constDateLayout := "2006-01-02"
+	constDateTimeLayout := "2006-01-02 15:04:05"
+
+	if len(start) == 10 {
+		if t, err := time.Parse(constDateLayout, start); err == nil {
+			start = t.Format(constDateTimeLayout) // 默认 00:00:00 已包含
+		}
+	}
+	if len(end) == 10 {
+		if t, err := time.Parse(constDateLayout, end); err == nil {
+			// 设置为当天 23:59:59 末尾
+			end = t.Add(24*time.Hour - time.Second).Format(constDateTimeLayout)
+		}
+	}
+
+	db := h.endpointService.DB()
+
+	// 构造动态 SQL
+	where := []string{"endpointId = ?", "eventType = 'log'"}
+	args := []interface{}{endpointID}
+
+	if instanceID != "" {
+		where = append(where, "instanceId = ?")
+		args = append(args, instanceID)
+	}
+
+	if start != "" {
+		where = append(where, "createdAt >= ?")
+		args = append(args, start)
+	}
+	if end != "" {
+		where = append(where, "createdAt <= ?")
+		args = append(args, end)
+	}
+
+	if level != "" && level != "all" {
+		where = append(where, "LOWER(logs) LIKE ?")
+		args = append(args, "%"+level+"%")
+	}
+
+	whereSQL := strings.Join(where, " AND ")
+
+	// 查询总数
+	countSQL := "SELECT COUNT(*) FROM \"EndpointSSE\" WHERE " + whereSQL
+	var total int
+	if err := db.QueryRow(countSQL, args...).Scan(&total); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	// 查询分页数据
+	offset := (page - 1) * size
+	dataSQL := "SELECT id, createdAt, logs, instanceId FROM \"EndpointSSE\" WHERE " + whereSQL + " ORDER BY createdAt DESC LIMIT ? OFFSET ?"
+	argsWithLim := append(args, size, offset)
+	rows, err := db.Query(dataSQL, argsWithLim...)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	logs := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var id int64
+		var createdAt time.Time
+		var logsStr sql.NullString
+		var instanceID sql.NullString
+		if err := rows.Scan(&id, &createdAt, &logsStr, &instanceID); err == nil {
+			logs = append(logs, map[string]interface{}{
+				"id":       id,
+				"createAt": createdAt.Format("2006-01-02 15:04:05"),
+				"message":  logsStr.String,
+				"instanceId": func() string {
+					if instanceID.Valid {
+						return instanceID.String
+					}
+					return ""
+				}(),
+				"level": func() string { // 简单解析日志行级别
+					upper := strings.ToUpper(logsStr.String)
+					switch {
+					case strings.Contains(upper, "ERROR"):
+						return "ERROR"
+					case strings.Contains(upper, "WARN"):
+						return "WARN"
+					case strings.Contains(upper, "DEBUG"):
+						return "DEBUG"
+					case strings.Contains(upper, "EVENTS"):
+						return "EVENTS"
+					default:
+						return "INFO"
+					}
+				}(),
+			})
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"total":   total,
+		"page":    page,
+		"size":    size,
+		"totalPages": func() int {
+			if size == 0 {
+				return 0
+			}
+			if total%size == 0 {
+				return total / size
+			} else {
+				return total/size + 1
+			}
+		}(),
+		"logs": logs,
+	})
+}
+
+// HandleRecycleList 获取指定端点回收站隧道 (GET /api/endpoints/{id}/recycle)
+func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	endpointID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		return
+	}
+
+	db := h.endpointService.DB()
+
+	rows, err := db.Query(`SELECT id, name, createdAt, deletedAt, commandLine FROM "Tunnel" WHERE endpointId = ? AND status = 'deleted' ORDER BY deletedAt DESC`, endpointID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	list := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var id int64
+		var name string
+		var createdAt, deletedAt time.Time
+		var cmdLine sql.NullString
+		if err := rows.Scan(&id, &name, &createdAt, &deletedAt, &cmdLine); err == nil {
+			list = append(list, map[string]interface{}{
+				"id":        id,
+				"name":      name,
+				"createdAt": createdAt.Format("2006-01-02 15:04:05"),
+				"deletedAt": deletedAt.Format("2006-01-02 15:04:05"),
+				"commandLine": func() string {
+					if cmdLine.Valid {
+						return cmdLine.String
+					}
+					return ""
+				}(),
+			})
+		}
+	}
+
+	json.NewEncoder(w).Encode(list)
+}
+
+// HandleRecycleCount 获取回收站数量 (GET /api/endpoints/{id}/recycle/count)
+func (h *EndpointHandler) HandleRecycleCount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	endpointID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		return
+	}
+
+	db := h.endpointService.DB()
+	var count int
+	err = db.QueryRow(`SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ? AND status = 'deleted'`, endpointID).Scan(&count)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{"count": count})
+}
+
 // refreshTunnels 同步指定端点的隧道信息
 func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	log.Infof("[Req] 刷新端点 %v 的隧道信息", endpointID)

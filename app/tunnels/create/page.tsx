@@ -19,6 +19,7 @@ import { useState, useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
+  faArrowLeft,
   faServer, 
   faDesktop,
   faCheck,
@@ -246,15 +247,17 @@ export default function CreateTunnelPage() {
         />
       )}
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">创建实例</h1>
-        <Button 
-          variant="light"
-          className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
-          onClick={() => router.back()}
-        >
-          返回
+      <div className="flex items-center gap-3 md:gap-4">
+        <Button
+            isIconOnly
+            variant="flat"
+            size="sm"
+            onClick={() => router.back()}
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} />
         </Button>
+        <h1 className="text-2xl font-bold">创建实例</h1>
       </div>
 
       <Card className="p-2 shadow-none border-2 border-default-200">

@@ -955,7 +955,7 @@ func (s *Service) DB() *sql.DB {
 }
 
 // QuickCreateTunnel 根据完整 URL 快速创建隧道实例 (server://addr:port/target:port?params)
-func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string) error {
+func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string) error {
 	// 粗解析协议
 	idx := strings.Index(rawURL, "://")
 	if idx == -1 {
@@ -968,8 +968,12 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string) error {
 	tp, _ := strconv.Atoi(cfg.TunnelPort)
 	sp, _ := strconv.Atoi(cfg.TargetPort)
 
+	finalName := name
+	if strings.TrimSpace(finalName) == "" {
+		finalName = fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix())
+	}
 	req := CreateTunnelRequest{
-		Name:          fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix()),
+		Name:          finalName,
 		EndpointID:    endpointID,
 		Mode:          mode,
 		TunnelAddress: cfg.TunnelAddress,
