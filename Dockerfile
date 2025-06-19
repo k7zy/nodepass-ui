@@ -41,7 +41,7 @@ COPY --from=frontend-builder /app .
 ENV CGO_ENABLED=1
 
 # 编译 Backend 可执行文件，注入版本号
-RUN go build -ldflags "-s -w -X main.Version=${VERSION}" -o nodedashpass ./cmd/server
+RUN go build -ldflags "-s -w -X main.Version=${VERSION}" -o nodepassdash ./cmd/server
 
 # ========= 运行阶段 =========
 ARG VERSION=dev
@@ -51,7 +51,7 @@ ENV APP_VERSION=$VERSION
 WORKDIR /app
 
 # 拷贝可执行文件、静态资源、public 目录
-COPY --from=backend-builder /app/nodedashpass ./
+COPY --from=backend-builder /app/nodepassdash ./
 COPY --from=backend-builder /app/dist ./dist
 COPY --from=backend-builder /app/public ./public
 
@@ -59,6 +59,6 @@ COPY --from=backend-builder /app/public ./public
 EXPOSE 3000
 
 # 启动命令
-CMD ["/app/nodedashpass"]
+CMD ["/app/nodepassdash"]
 
 # --- 至此，镜像构建完成 --- 

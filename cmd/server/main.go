@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,6 +31,7 @@ var Version = "dev"
 func main() {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
+	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
 	flag.Parse()
 
 	// 如果指定了 --resetpwd，则进入密码重置流程后退出
@@ -69,7 +71,7 @@ func main() {
 	// 创建SSE服务和管理器（需先于处理器创建）
 	sseService := sse.NewService(db)
 	sseManager := sse.NewManager(db, sseService)
-	sseManager.StartWorkers(runtime.NumCPU()) // 比如 4 或 8
+	sseManager.StartWorkers(runtime.NumCPU() * 2) // 比如 4 或 8
 
 	// 初始化处理器
 	authHandler := api.NewAuthHandler(authService)
@@ -107,11 +109,15 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})
 
-	// 创建HTTP服务器
-	server := &http.Server{
-		Addr:    ":3000",
-		Handler: rootRouter,
+	// 读取端口：命令行 > 环境变量 > 默认值
+	port := "3000"
+	if env := os.Getenv("PORT"); env != "" {
+		port = env
 	}
+	if *portFlag != "" {
+		port = *portFlag
+	}
+	addr := fmt.Sprintf(":%s", port)
 
 	// 创建上下文和取消函数
 	ctx, cancel := context.WithCancel(context.Background())
@@ -127,9 +133,15 @@ func main() {
 		log.Errorf("初始化SSE系统失败: %v", err)
 	}
 
+	// 创建HTTP服务器
+	server := &http.Server{
+		Addr:    addr,
+		Handler: rootRouter,
+	}
+
 	// 启动HTTP服务器
 	go func() {
-		log.Infof("NodePassDash[%s]启动在 http://localhost:3000", Version)
+		log.Infof("NodePassDash[%s]启动在 http://localhost:%s", Version, port)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Errorf("HTTP服务器错误: %v", err)
 		}
