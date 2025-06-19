@@ -296,7 +296,9 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 		log.Errorf("[API.%d]解析实例数据失败 %v", endpointID, err)
 		return
 	}
-
+	if inst.ID == "" {
+		return
+	}
 	evt := models.EndpointSSE{
 		EventType:    models.SSEEventType(event.Type),
 		PushType:     event.Type,

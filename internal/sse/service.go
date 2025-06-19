@@ -860,7 +860,7 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	err := tx.QueryRow(`SELECT status, tcpRx, tcpTx, udpRx, udpTx, lastEventTime FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, e.EndpointID, e.InstanceID).
 		Scan(&curStatus, &curTCPRx, &curTCPTx, &curUDPRx, &curUDPTx, &curEventTime)
 	if err == sql.ErrNoRows {
-		log.Infof("[Tunnel.%s]SSE跳过不存在的隧道[%d]=>[%s]", e.InstanceID, e.EndpointID, cfg)
+		log.Infof("[API.%d]SSE跳过不存在的隧道%v", e.EndpointID, e)
 		return nil // 尚未创建对应记录，等待后续 create/initial
 	}
 	if err != nil {

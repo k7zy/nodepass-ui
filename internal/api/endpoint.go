@@ -14,7 +14,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"NodePassDash/internal/endpoint"
+	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/sse"
+	"strings"
 )
 
 // EndpointHandler 端点相关的处理器
@@ -308,6 +310,13 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 			}(id)
 		}
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: true, Message: "端点已断开"})
+	case "refresTunnel":
+		if err := h.refreshTunnels(id); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: true, Message: "隧道刷新完成"})
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: "不支持的操作类型"})
@@ -501,4 +510,239 @@ func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Requ
 		"logs":    logs,
 		"success": true,
 	})
+}
+
+// refreshTunnels 同步指定端点的隧道信息
+func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
+	log.Infof("[Req] 刷新端点 %v 的隧道信息", endpointID)
+	// 获取端点信息
+	ep, err := h.endpointService.GetEndpointByID(endpointID)
+	if err != nil {
+		return err
+	}
+
+	// 创建 NodePass 客户端并获取实例列表
+	npClient := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
+	instances, err := npClient.GetInstances()
+	if err != nil {
+		return err
+	}
+
+	db := h.endpointService.DB()
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	// 记录 NodePass 实例 ID，便于后续删除不存在的隧道
+	instanceIDSet := make(map[string]struct{})
+
+	// Upsert
+	for _, inst := range instances {
+		if inst.Type == "" {
+			continue
+		}
+		instanceIDSet[inst.ID] = struct{}{}
+
+		parsed := parseInstanceURL(inst.URL, inst.Type)
+
+		convPort := func(p string) int {
+			v, _ := strconv.Atoi(p)
+			return v
+		}
+		convInt := func(s string) int {
+			v, _ := strconv.Atoi(s)
+			return v
+		}
+
+		// 检查隧道是否存在
+		var tunnelID int64
+		err := tx.QueryRow(`SELECT id FROM "Tunnel" WHERE instanceId = ?`, inst.ID).Scan(&tunnelID)
+		if err != nil && err != sql.ErrNoRows {
+			tx.Rollback()
+			return err
+		}
+
+		if err == sql.ErrNoRows {
+			// 插入新隧道
+			name := fmt.Sprintf("auto-%s", inst.ID)
+			_, err = tx.Exec(`INSERT INTO "Tunnel" (
+				instanceId, name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort,
+				tlsMode, certPath, keyPath, logLevel, commandLine, status, min, max,
+				tcpRx, tcpTx, udpRx, udpTx, createdAt, updatedAt)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+				inst.ID, name, endpointID, inst.Type,
+				parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
+				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, inst.Status,
+				convInt(parsed.Min), convInt(parsed.Max),
+				inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			log.Infof("[Req] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
+		} else {
+			// 更新已有隧道（除 name 外其它字段全部更新）
+			_, err = tx.Exec(`UPDATE "Tunnel" SET 
+				mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
+				tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, status = ?,
+				min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, updatedAt = CURRENT_TIMESTAMP
+				WHERE id = ?`,
+				inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
+				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, inst.Status,
+				convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, tunnelID)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			log.Infof("[Req] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
+		}
+	}
+
+	// 删除已不存在的隧道
+	rows, err := tx.Query(`SELECT id, instanceId FROM "Tunnel" WHERE endpointId = ?`, endpointID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		var iid string
+		if err := rows.Scan(&id, &iid); err == nil {
+			if _, ok := instanceIDSet[iid]; !ok {
+				if _, err := tx.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, id); err != nil {
+					tx.Rollback()
+					return err
+				}
+				log.Infof("[Req] 端点 %d 更新：删除隧道 %v", endpointID, id)
+			}
+		}
+	}
+
+	// 更新端点隧道数量
+	_, _ = tx.Exec(`UPDATE "Endpoint" SET tunnelCount = (SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?) WHERE id = ?`, endpointID, endpointID)
+	log.Infof("[Req] 端点 %d 更新：更新隧道数量", endpointID)
+	return tx.Commit()
+}
+
+// parseInstanceURL 解析隧道 URL，逻辑与 tunnel 包保持一致（简化复制）
+func parseInstanceURL(raw, mode string) struct {
+	TunnelAddress string
+	TunnelPort    string
+	TargetAddress string
+	TargetPort    string
+	TLSMode       string
+	LogLevel      string
+	CertPath      string
+	KeyPath       string
+	Min           string
+	Max           string
+} {
+	type parsedURL struct {
+		TunnelAddress string
+		TunnelPort    string
+		TargetAddress string
+		TargetPort    string
+		TLSMode       string
+		LogLevel      string
+		CertPath      string
+		KeyPath       string
+		Min           string
+		Max           string
+	}
+
+	res := parsedURL{TLSMode: "inherit", LogLevel: "inherit"}
+
+	if raw == "" {
+		return res
+	}
+
+	// 去协议
+	if idx := strings.Index(raw, "://"); idx != -1 {
+		raw = raw[idx+3:]
+	}
+
+	// query 部分
+	var query string
+	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
+		query = raw[qIdx+1:]
+		raw = raw[:qIdx]
+	}
+
+	// host 与 path
+	var hostPart, pathPart string
+	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
+		hostPart = raw[:pIdx]
+		pathPart = raw[pIdx+1:]
+	} else {
+		hostPart = raw
+	}
+
+	if hostPart != "" {
+		if strings.Contains(hostPart, ":") {
+			parts := strings.SplitN(hostPart, ":", 2)
+			res.TunnelAddress = parts[0]
+			res.TunnelPort = parts[1]
+		} else {
+			if _, err := strconv.Atoi(hostPart); err == nil {
+				res.TunnelPort = hostPart
+			} else {
+				res.TunnelAddress = hostPart
+			}
+		}
+	}
+
+	if pathPart != "" {
+		if strings.Contains(pathPart, ":") {
+			parts := strings.SplitN(pathPart, ":", 2)
+			res.TargetAddress = parts[0]
+			res.TargetPort = parts[1]
+		} else {
+			if _, err := strconv.Atoi(pathPart); err == nil {
+				res.TargetPort = pathPart
+			} else {
+				res.TargetAddress = pathPart
+			}
+		}
+	}
+
+	if query != "" {
+		for _, kv := range strings.Split(query, "&") {
+			if kv == "" {
+				continue
+			}
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := parts[0], parts[1]
+			switch key {
+			case "tls":
+				if mode == "server" {
+					switch val {
+					case "0":
+						res.TLSMode = "mode0"
+					case "1":
+						res.TLSMode = "mode1"
+					case "2":
+						res.TLSMode = "mode2"
+					}
+				}
+			case "log":
+				res.LogLevel = strings.ToLower(val)
+			case "crt":
+				res.CertPath = val
+			case "key":
+				res.KeyPath = val
+			case "min":
+				res.Min = val
+			case "max":
+				res.Max = val
+			}
+		}
+	}
+
+	return res
 }

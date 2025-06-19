@@ -130,3 +130,46 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 	}
 	return nil
 }
+
+// Instance 表示 NodePass 中的隧道实例信息
+// 与 NodePass API /instances 响应保持一致
+//
+// 示例响应:
+// [
+//
+//	{
+//	  "id": "860e24a3",
+//	  "type": "client",
+//	  "status": "running",
+//	  "url": "client://:3004/:3008?log=debug&max=100&min=10",
+//	  "tcprx": 0,
+//	  "tcptx": 0,
+//	  "udprx": 0,
+//	  "udptx": 0
+//	}
+//
+// ]
+//
+// 字段保持驼峰以方便 JSON 解析
+//
+//go:generate stringer -type=Instance
+type Instance struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+	URL    string `json:"url"`
+	TCPRx  int64  `json:"tcprx"`
+	TCPTx  int64  `json:"tcptx"`
+	UDPRx  int64  `json:"udprx"`
+	UDPTx  int64  `json:"udptx"`
+}
+
+// GetInstances 获取所有隧道实例列表
+func (c *Client) GetInstances() ([]Instance, error) {
+	url := fmt.Sprintf("%s%s/instances", c.baseURL, c.apiPath)
+	var resp []Instance
+	if err := c.doRequest(http.MethodGet, url, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}

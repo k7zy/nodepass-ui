@@ -468,11 +468,15 @@ export default function EndpointsPage() {
                   case 'addTunnel':
                     handleAddTunnel(endpoint);
                     break;
+                  case 'refresTunnel':
+                    handleRefreshTunnels(endpoint.id);
+                    break;
                   case 'delete':
                     handleDeleteClick(endpoint);
                     break;
                 }}}>
-              <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加隧道</DropdownItem>
+              <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加实例</DropdownItem>
+              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faRotateRight}/>} >刷新实例</DropdownItem>
               <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />}>重命名</DropdownItem>
               <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>}>复制配置</DropdownItem>
               <DropdownItem 
@@ -620,6 +624,25 @@ export default function EndpointsPage() {
       addToast({title:'复制失败', description:'无法复制到剪贴板', color:'danger'});
     });
   }
+
+  // 刷新指定端点的隧道信息
+  const handleRefreshTunnels = async (endpointId: number) => {
+    try {
+      const res = await fetch(buildApiUrl('/api/endpoints'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: endpointId, action: 'refresTunnel' })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '刷新失败');
+      }
+      addToast({ title: '刷新成功', description: data.message || '隧道信息已刷新', color: 'success' });
+      await fetchEndpoints();
+    } catch (err) {
+      addToast({ title: '刷新失败', description: err instanceof Error ? err.message : '刷新请求失败', color: 'danger' });
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto py-6 space-y-6">
