@@ -22,6 +22,7 @@ export const useTunnelActions = () => {
     
     try {
       addToast({
+        timeout: 1,
         title: `正在${actionText}实例...`,
         description: tunnelName ? `${actionText} ${tunnelName}` : "请稍候",
         color: "primary",
@@ -77,6 +78,7 @@ export const useTunnelActions = () => {
     
     try {
       addToast({
+        timeout: 1,
         title: "正在重启实例...",
         description: tunnelName ? `重启 ${tunnelName}` : "请稍候",
         color: "primary",
@@ -132,6 +134,7 @@ export const useTunnelActions = () => {
     
     try {
       addToast({
+        timeout: 1,
         title: "正在删除实例...",
         description: tunnelName ? `删除 ${tunnelName}` : "请稍候",
         color: "primary",
