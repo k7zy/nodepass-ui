@@ -23,7 +23,7 @@ RUN pnpm build
 RUN pnpm prune --prod
 
 # ========= Go 构建阶段 =========
-FROM golang:1.21-alpine AS backend-builder
+FROM golang:1.23-alpine AS backend-builder
 ARG VERSION=dev
 WORKDIR /app
 
