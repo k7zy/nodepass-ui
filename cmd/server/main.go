@@ -37,7 +37,7 @@ func main() {
 	// 如果指定了 --resetpwd，则进入密码重置流程后退出
 	if *resetPwdCmd {
 		// 打开数据库
-		db, err := sql.Open("sqlite3", "./public/sqlite.db")
+		db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=5000&_fk=1")
 		if err != nil {
 			log.Errorf("连接数据库失败: %v", err)
 		}
@@ -51,11 +51,15 @@ func main() {
 	}
 
 	// 打开数据库连接
-	db, err := sql.Open("sqlite3", "./public/sqlite.db")
+	db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=5000&_fk=1")
 	if err != nil {
 		log.Errorf("连接数据库失败: %v", err)
 	}
 	defer db.Close()
+
+	// 仅使用单连接串行化写，避免锁冲突
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(4)
 
 	// 初始化数据库表结构
 	if err := initDatabase(db); err != nil {

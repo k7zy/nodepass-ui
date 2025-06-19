@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -435,4 +436,69 @@ func (h *EndpointHandler) HandleEndpointStatus(w http.ResponseWriter, r *http.Re
 			send()
 		}
 	}
+}
+
+// HandleEndpointLogs GET /api/endpoints/{id}/logs
+// 根据 endpointId 查询最近 limit 条日志(eventType = 'log')
+func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	if idStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少端点ID"})
+		return
+	}
+
+	endpointID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		return
+	}
+
+	// 解析 limit 参数，默认 1000
+	limit := 1000
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	db := h.endpointService.DB()
+
+	rows, err := db.Query(`SELECT id, logs, tcpRx, tcpTx, udpRx, udpTx, createdAt FROM "EndpointSSE" WHERE endpointId = ? AND eventType = 'log' ORDER BY createdAt DESC LIMIT ?`, endpointID, limit)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	logs := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var id int64
+		var logsStr sql.NullString
+		var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
+		var createdAt time.Time
+		if err := rows.Scan(&id, &logsStr, &tcpRx, &tcpTx, &udpRx, &udpTx, &createdAt); err == nil {
+			logs = append(logs, map[string]interface{}{
+				"id":        id,
+				"message":   logsStr.String,
+				"isHtml":    true,
+				"traffic":   map[string]int64{"tcpRx": tcpRx.Int64, "tcpTx": tcpTx.Int64, "udpRx": udpRx.Int64, "udpTx": udpTx.Int64},
+				"timestamp": createdAt,
+			})
+		}
+	}
+
+	// 返回数据，兼容旧前端结构
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"logs":    logs,
+		"success": true,
+	})
 }

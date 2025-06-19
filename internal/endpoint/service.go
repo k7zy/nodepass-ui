@@ -16,6 +16,11 @@ func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
 
+// DB 返回底层 *sql.DB 以便其他层访问
+func (s *Service) DB() *sql.DB {
+	return s.db
+}
+
 // GetEndpoints 获取所有端点列表
 func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 	query := `

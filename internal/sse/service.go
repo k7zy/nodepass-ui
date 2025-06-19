@@ -79,7 +79,7 @@ func (s *Service) AddClient(clientID string, w http.ResponseWriter) {
 	}
 
 	// 记录日志
-	log.Info("SSE客户端已添加", "clientID", clientID, "totalClients", len(s.clients))
+	log.Infof("SSE客户端已添加", "clientID", clientID, "totalClients", len(s.clients))
 }
 
 // RemoveClient 移除SSE客户端
@@ -90,7 +90,7 @@ func (s *Service) RemoveClient(clientID string) {
 	delete(s.clients, clientID)
 
 	// 记录日志
-	log.Info("SSE客户端已移除", "clientID", clientID, "remaining", len(s.clients))
+	log.Infof("SSE客户端已移除", "clientID", clientID, "remaining", len(s.clients))
 
 	// 清理隧道订阅
 	for tunnelID, subs := range s.tunnelSubs {
@@ -112,7 +112,7 @@ func (s *Service) SubscribeToTunnel(clientID, tunnelID string) {
 
 	if client, exists := s.clients[clientID]; exists {
 		s.tunnelSubs[tunnelID][clientID] = client
-		log.Info("客户端订阅隧道", "clientID", clientID, "tunnelID", tunnelID, "subCount", len(s.tunnelSubs[tunnelID]))
+		log.Infof("客户端订阅隧道clientID=%s tunnelID=%s subCount=%d", clientID, tunnelID, len(s.tunnelSubs[tunnelID]))
 	}
 }
 
@@ -126,7 +126,7 @@ func (s *Service) UnsubscribeFromTunnel(clientID, tunnelID string) {
 		if len(subs) == 0 {
 			delete(s.tunnelSubs, tunnelID)
 		}
-		log.Info("客户端取消隧道订阅", "clientID", clientID, "tunnelID", tunnelID, "remainingSubs", len(subs))
+		log.Infof("客户端取消隧道订阅clientID=%s tunnelID=%s remainingSubs=%d", clientID, tunnelID, len(subs))
 	}
 }
 
@@ -373,7 +373,7 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface
 
 	if !exists || len(subs) == 0 {
 		// 没有订阅者，记录调试日志后退出
-		log.Debug("无隧道订阅者，跳过推送", "instanceID", instanceID)
+		log.Debugf("[Tunnel.%s]无隧道订阅者，跳过推送", instanceID)
 		return
 	}
 
@@ -411,8 +411,7 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface
 		}
 		s.mu.Unlock()
 	}
-
-	log.Info("隧道事件已推送", "sent", sent, "instanceID", instanceID)
+	log.Debugf("[Tunnel.%s]隧道事件已推送", instanceID)
 }
 
 // sendGlobalUpdate 推送全局事件（仪表盘 / 列表等使用），会发送给所有客户端
@@ -756,13 +755,13 @@ func (s *Service) handleUpdateEvent(e models.EndpointSSE) {
 		cfg := parseInstanceURL(ptrString(e.URL), ptrStringDefault(e.InstanceType, ""))
 		return s.tunnelUpdate(tx, e, cfg)
 	}); err != nil {
-		log.Error("更新隧道失败", "err", err)
+		log.Errorf("更新隧道失败,%v", err)
 	}
 }
 
 func (s *Service) handleDeleteEvent(e models.EndpointSSE) {
 	if err := s.withTx(func(tx *sql.Tx) error { return s.tunnelDelete(tx, e.EndpointID, e.InstanceID) }); err != nil {
-		log.Error("删除隧道失败", "err", err)
+		log.Errorf("删除隧道失败,%v", err)
 	}
 }
 
@@ -829,7 +828,7 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	err := tx.QueryRow(`SELECT status, tcpRx, tcpTx, udpRx, udpTx, lastEventTime FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, e.EndpointID, e.InstanceID).
 		Scan(&curStatus, &curTCPRx, &curTCPTx, &curUDPRx, &curUDPTx, &curEventTime)
 	if err == sql.ErrNoRows {
-		log.Infof("[Tunnel.%s]SSE跳过不存在的隧道", e.InstanceID)
+		log.Infof("[Tunnel.%s]SSE跳过不存在的隧道[%d]=>[%s]", e.InstanceID, e.EndpointID, cfg)
 		return nil // 尚未创建对应记录，等待后续 create/initial
 	}
 	if err != nil {

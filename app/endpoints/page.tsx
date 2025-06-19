@@ -23,6 +23,7 @@ import {
   DropdownItem
 } from "@heroui/react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -96,6 +97,8 @@ export default function EndpointsPage() {
   const {isOpen: isDeleteOpen, onOpen: onDeleteOpen, onOpenChange: onDeleteOpenChange} = useDisclosure();
   const {isOpen: isRenameOpen, onOpen: onRenameOpen, onOpenChange: onRenameOpenChange} = useDisclosure();
   const [selectedEndpoint, setSelectedEndpoint] = useState<FormattedEndpoint | null>(null);
+  // Next.js 路由
+  const router = useRouter();
 
   // 获取主控列表
   const fetchEndpoints = async () => {
@@ -695,6 +698,8 @@ export default function EndpointsPage() {
             return (
               <Card 
                 key={endpoint.id} 
+                isPressable
+                onPress={() => router.push(`/endpoints/details?id=${endpoint.id}`)}
                 className="relative w-full h-[200px]"
               >
                 {/* 状态按钮 */}

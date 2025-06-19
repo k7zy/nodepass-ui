@@ -256,6 +256,9 @@ func (m *Manager) workerLoop() {
 
 // processPayload 解析 JSON 并调用 service.ProcessEvent
 func (m *Manager) processPayload(endpointID int64, payload string) {
+	if payload == "" {
+		return
+	}
 	var event struct {
 		Type      string          `json:"type"`
 		Time      interface{}     `json:"time"`

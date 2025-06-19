@@ -28,49 +28,7 @@ import { useTunnelSSE } from '@/lib/hooks/use-sse';
 import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useSearchParams } from 'next/navigation';
-
-// 添加ANSI颜色处理函数
-const processAnsiColors = (text: string) => {
-  try {
-    // 移除时间戳前缀（如果存在）
-    text = text.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s/, '');
-    
-    // 只移除 \u001B 字符，保留后面的颜色代码
-    text = text.replace(/\u001B/g, ''); // 只移除 ESC 字符，保留 [32m 等
-    
-    // 将 ANSI 颜色代码转换为 HTML span 标签
-    const colorMap = new Map([
-      [/\[32m/g, '<span class="text-green-400">'],   // INFO - 绿色
-      [/\[31m/g, '<span class="text-red-400">'],     // ERROR - 红色
-      [/\[33m/g, '<span class="text-yellow-400">'],  // WARN - 黄色
-      [/\[34m/g, '<span class="text-blue-400">'],    // DEBUG - 蓝色
-      [/\[35m/g, '<span class="text-purple-400">'],  // 紫色
-      [/\[36m/g, '<span class="text-cyan-400">'],    // 青色
-      [/\[37m/g, '<span class="text-gray-400">'],    // 灰色
-      [/\[0m/g, '</span>']                           // 结束标签
-    ]);
-
-    // 替换颜色代码
-    for (const [pattern, replacement] of colorMap) {
-      text = text.replace(pattern, replacement);
-    }
-
-    // 确保所有标签都正确闭合
-    const openTags = (text.match(/<span/g) || []).length;
-    const closeTags = (text.match(/<\/span>/g) || []).length;
-    
-    // 如果开始标签多于结束标签，添加结束标签
-    if (openTags > closeTags) {
-      const missingCloseTags = openTags - closeTags;
-      text += '</span>'.repeat(missingCloseTags);
-    }
-
-    return text;
-  } catch (error) {
-    console.error('处理ANSI颜色失败:', error);
-    return text;
-  }
-};
+import { processAnsiColors } from "@/lib/utils/ansi";
 
 interface TunnelInfo {
   id: string;
@@ -931,7 +889,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               >
                 {loading ? (
                   <div className="animate-pulse">
-                    <span className="text-gray-500">[{new Date().toLocaleString()}]</span> 
                     <span className="text-blue-400 ml-2">INFO:</span> 
                     <span className="text-gray-300 ml-1">加载日志中...</span>
                   </div>
@@ -944,7 +901,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                     {/* 反转数组顺序，让最新的日志显示在底部 */}
                     {logs.slice().reverse().map((log) => (
                       <div key={log.id.toString()} className="text-gray-300 leading-5">
-                        <span className="text-gray-500 text-xs">[{new Date(log.timestamp).toLocaleString()}]</span>
                         {log.isHtml ? (
                           <span 
                             className="ml-2" 
@@ -966,7 +922,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   <h4 className="font-semibold mb-3 text-sm md:text-base">实例配置</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                     <CellValue 
-                      label="隧道地址" 
+                      label="实例地址" 
                       value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
                     />
                     <CellValue 
