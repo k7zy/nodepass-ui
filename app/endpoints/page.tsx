@@ -105,6 +105,8 @@ export default function EndpointsPage() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [deleteModalEndpoint, setDeleteModalEndpoint] = useState<FormattedEndpoint | null>(null);
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
+  const [showApiKeyAll, setShowApiKeyAll] = useState(false);
+  const [showUrlAll, setShowUrlAll] = useState(false);
   const {isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange} = useDisclosure();
   const {isOpen: isDeleteOpen, onOpen: onDeleteOpen, onOpenChange: onDeleteOpenChange} = useDisclosure();
   const {isOpen: isRenameOpen, onOpen: onRenameOpen, onOpenChange: onRenameOpenChange} = useDisclosure();
@@ -855,8 +857,26 @@ export default function EndpointsPage() {
           <TableHeader>
             <TableColumn key="id">ID</TableColumn>
             <TableColumn key="name" className="min-w-[140px]">名称</TableColumn>
-            <TableColumn key="url" className="min-w-[200px]">URL</TableColumn>
-            <TableColumn key="apikey" className="min-w-[220px]">API Key</TableColumn>
+            <TableColumn key="url" className="min-w-[200px]">
+              <div className="flex items-center gap-1">
+                <span>URL</span>
+                <FontAwesomeIcon 
+                  icon={showUrlAll ? faEyeSlash : faEye}
+                  className="text-xs cursor-pointer hover:text-primary" 
+                  onClick={()=>setShowUrlAll(prev=>!prev)}
+                />
+              </div>
+            </TableColumn>
+            <TableColumn key="apikey" className="min-w-[220px]">
+              <div className="flex items-center gap-1">
+                <span>API Key</span>
+                <FontAwesomeIcon 
+                  icon={showApiKeyAll ? faEyeSlash : faEye}
+                  className="text-xs cursor-pointer hover:text-primary" 
+                  onClick={()=>setShowApiKeyAll(prev=>!prev)}
+                />
+              </div>
+            </TableColumn>
             <TableColumn key="actions" className="w-52">操作</TableColumn>
           </TableHeader>
           <TableBody>
@@ -893,56 +913,50 @@ export default function EndpointsPage() {
                         }`
                       } />
                       {ep.name}&nbsp;
-                      [{realTimeData.tunnelCount}实例]
+                      <span className="text-default-400 text-small">[{realTimeData.tunnelCount}实例]</span>
                     </TableCell>
-                    <TableCell className="truncate min-w-[200px]">{ep.url}{ep.apiPath}</TableCell>
+                    <TableCell className="truncate min-w-[200px]">{showUrlAll ? `${ep.url}${ep.apiPath}` : '••••••••••••••••••••••••••'}
+                    </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono truncate">
-                          {showApiKey[ep.id] ? ep.apiKey : '•••••••••••••••••••••••••••••••••'}
-                        </span>
-                        <FontAwesomeIcon 
-                          icon={showApiKey[ep.id] ? faEyeSlash : faEye} 
-                          className="text-xs cursor-pointer hover:text-primary" 
-                          onClick={(e)=>{e.stopPropagation(); toggleApiKeyVisibility(ep.id);}}
-                        />
-                      </div>
+                      <span className="font-mono truncate">
+                        {showApiKeyAll ? ep.apiKey : '•••••••••••••••••••••••••••••••••'}
+                      </span>
                     </TableCell>
                     <TableCell className="w-52">
                       <div className="flex items-center gap-1 justify-start">
                         {/* 查看详情 */}
                         <Tooltip content="查看详情">
-                          <Button isIconOnly size="sm" variant="light" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
+                          <Button isIconOnly size="sm" variant="light" color="default" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
                             <FontAwesomeIcon icon={faFileLines} />
                           </Button>
                         </Tooltip>
                         {/* 添加实例 */}
                         <Tooltip content="添加实例">
-                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleAddTunnel(ep)} color="primary">
+                          <Button isIconOnly size="sm" variant="light" color="primary" onPress={()=>handleAddTunnel(ep)}>
                             <FontAwesomeIcon icon={faPlus} />
                           </Button>
                         </Tooltip>
                         {/* 刷新实例 */}
                         <Tooltip content="强刷实例">
-                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleRefreshTunnels(ep.id)} color="default">
+                          <Button isIconOnly size="sm" variant="light" color="secondary" onPress={()=>handleRefreshTunnels(ep.id)}>
                             <FontAwesomeIcon icon={faRotateRight} />
                           </Button>
                         </Tooltip>
                         {/* 重命名 */}
                         <Tooltip content="重命名"> 
-                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleCardClick(ep)}>
+                          <Button isIconOnly size="sm" variant="light" color="warning" onPress={()=>handleCardClick(ep)}>
                             <FontAwesomeIcon icon={faPen} />
                           </Button>
                         </Tooltip>
                         {/* 复制配置 */}
                         <Tooltip content="复制配置">
-                          <Button isIconOnly size="sm" variant="light" onPress={()=>handleCopyConfig(ep)} color="secondary">
+                          <Button isIconOnly size="sm" variant="light" color="success" onPress={()=>handleCopyConfig(ep)}>
                             <FontAwesomeIcon icon={faCopy} />
                           </Button>
                         </Tooltip>
                         {/* 连接 / 断开 */}
                         <Tooltip content={realTimeData.status==='ONLINE' ? '断开连接' : '连接主控'}>
-                          <Button isIconOnly size="sm" variant="light" color={realTimeData.status==='ONLINE' ? 'warning' : 'success'} onPress={()=>{
+                          <Button isIconOnly size="sm" variant="light" color={realTimeData.status==='ONLINE' ? 'danger' : 'success'} onPress={()=>{
                             if(realTimeData.status==='ONLINE') handleDisconnect(ep.id); else handleConnect(ep.id);
                           }}>
                             <FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug} />
