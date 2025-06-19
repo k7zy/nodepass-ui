@@ -608,13 +608,38 @@ export default function EndpointsPage() {
     });
   }
 
+  // 复制安装脚本到剪贴板
+  function handleCopyInstallScript() {
+    const cmd = 'bash <(wget -qO- https://run.nodepass.eu/np.sh)';
+    navigator.clipboard.writeText(cmd).then(()=>{
+      addToast({title:'已复制', description:'安装脚本已复制到剪贴板', color:'success'});
+    }).catch(()=>{
+      addToast({title:'复制失败', description:'无法复制到剪贴板', color:'danger'});
+    });
+  }
+
   return (
     <div className="max-w-7xl mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">API 主控管理</h1>
-          <Button isIconOnly variant="light" onPress={async ()=>{await fetchEndpoints();}}>
-            <FontAwesomeIcon icon={faRotateRight} />
+        </div>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="light"
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            startContent={<FontAwesomeIcon icon={faCopy} />}
+            onPress={handleCopyInstallScript}
+          >
+            复制安装脚本
+          </Button>
+          <Button 
+            variant="light"
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            startContent={  <FontAwesomeIcon icon={faRotateRight} />}
+            onPress={async ()=>{await fetchEndpoints();}}
+              >
+              刷新
           </Button>
         </div>
       </div>
