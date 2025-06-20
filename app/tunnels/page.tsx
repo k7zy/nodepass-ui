@@ -36,6 +36,7 @@ import { TunnelToolBox } from "./components/toolbox";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from '@/lib/utils';
+import QuickCreateTunnelModal from "./components/quick-create-tunnel-modal";
 
 // 定义实例类型
 interface Tunnel {
@@ -88,6 +89,10 @@ export default function TunnelsPage() {
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = useState(false);
+
+  // 编辑模态控制
+  const [editModalOpen,setEditModalOpen]=useState(false);
+  const [editTunnel,setEditTunnel]=useState<Tunnel|null>(null);
 
   // 获取实例列表
   const fetchTunnels = async () => {
@@ -286,6 +291,9 @@ export default function TunnelsPage() {
     setEditModalTunnel(tunnel);
     setNewTunnelName(tunnel.name);
     setIsEditModalOpen(true);
+    // open quick modal for comprehensive edit
+    setEditTunnel(tunnel);
+    setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
@@ -469,6 +477,14 @@ export default function TunnelsPage() {
               onClick={() => handleRestart(tunnel)}
               isDisabled={tunnel.status.type !== "success"}
               startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
+            />
+            <Button
+              isIconOnly
+              variant="light"
+              size="sm"
+              color="default"
+              onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
+              startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
             />
             <Button
               isIconOnly
@@ -658,6 +674,14 @@ export default function TunnelsPage() {
                         isIconOnly
                         variant="light"
                         size="sm"
+                        color="default"
+                        onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
+                        startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
+                      />
+                      <Button
+                        isIconOnly
+                        variant="light"
+                        size="sm"
                         color="danger"
                         onClick={() => handleDeleteClick(tunnel)}
                         startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
@@ -683,7 +707,7 @@ export default function TunnelsPage() {
                   {(column) => (
                     <TableColumn
                       key={column.key}
-                      hideHeader={column.key === "actions"}
+                      hideHeader={false}
                       align={column.key === "actions" ? "center" : "start"}
                     >
                       {column.label}
@@ -883,6 +907,17 @@ export default function TunnelsPage() {
           )}
         </ModalContent>
       </Modal>
+
+      {/* Quick Edit Modal */}
+      {editModalOpen && editTunnel && (
+        <QuickCreateTunnelModal
+          isOpen={editModalOpen}
+          onOpenChange={(open)=>setEditModalOpen(open)}
+          mode="edit"
+          editData={editTunnel as any}
+          onSaved={()=>{ setEditModalOpen(false); fetchTunnels(); }}
+        />
+      )}
     </>
   );
 } 

@@ -304,8 +304,24 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req tunnel.UpdateTunnelRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// 尝试解析为创建/替换请求体（与创建接口保持一致）
+	var rawCreate struct {
+		Name          string          `json:"name"`
+		EndpointID    int64           `json:"endpointId"`
+		Mode          string          `json:"mode"`
+		TunnelAddress string          `json:"tunnelAddress"`
+		TunnelPort    json.RawMessage `json:"tunnelPort"`
+		TargetAddress string          `json:"targetAddress"`
+		TargetPort    json.RawMessage `json:"targetPort"`
+		TLSMode       string          `json:"tlsMode"`
+		CertPath      string          `json:"certPath"`
+		KeyPath       string          `json:"keyPath"`
+		LogLevel      string          `json:"logLevel"`
+		Min           json.RawMessage `json:"min"`
+		Max           json.RawMessage `json:"max"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&rawCreate); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
@@ -314,21 +330,76 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req.ID = tunnelID
+	// 如果请求体包含 EndpointID 和 Mode，则认定为"替换"逻辑，否则执行原 Update 逻辑
+	if rawCreate.EndpointID != 0 && rawCreate.Mode != "" {
+		// 1. 获取旧 instanceId
+		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+			return
+		}
 
-	if err := h.tunnelService.UpdateTunnel(req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: false,
-			Error:   err.Error(),
-		})
+		// 2. 删除旧实例（回收站=true）
+		if err := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，遭遇无法删除旧实例: " + err.Error()})
+			return
+		}
+		log.Infof("[API.%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
+
+		// 工具函数解析 int 字段
+		parseInt := func(j json.RawMessage) (int, error) {
+			if j == nil {
+				return 0, nil
+			}
+			var i int
+			if err := json.Unmarshal(j, &i); err == nil {
+				return i, nil
+			}
+			var s string
+			if err := json.Unmarshal(j, &s); err == nil {
+				return strconv.Atoi(s)
+			}
+			return 0, strconv.ErrSyntax
+		}
+
+		tunnelPort, _ := parseInt(rawCreate.TunnelPort)
+		targetPort, _ := parseInt(rawCreate.TargetPort)
+		minVal, _ := parseInt(rawCreate.Min)
+		maxVal, _ := parseInt(rawCreate.Max)
+
+		createReq := tunnel.CreateTunnelRequest{
+			Name:          rawCreate.Name,
+			EndpointID:    rawCreate.EndpointID,
+			Mode:          rawCreate.Mode,
+			TunnelAddress: rawCreate.TunnelAddress,
+			TunnelPort:    tunnelPort,
+			TargetAddress: rawCreate.TargetAddress,
+			TargetPort:    targetPort,
+			TLSMode:       tunnel.TLSMode(rawCreate.TLSMode),
+			CertPath:      rawCreate.CertPath,
+			KeyPath:       rawCreate.KeyPath,
+			LogLevel:      tunnel.LogLevel(rawCreate.LogLevel),
+			Min:           minVal,
+			Max:           maxVal,
+		}
+
+		newTunnel, err := h.tunnelService.CreateTunnel(createReq)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
+			return
+		}
+		log.Infof("[API.%v] 编辑实例=>创建新实例: %v", rawCreate.EndpointID, newTunnel.InstanceID)
+
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功", Tunnel: newTunnel})
 		return
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-		Success: true,
-		Message: "隧道更新成功",
-	})
+	// -------- 原局部更新逻辑 ----------
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "不支持的更新请求"})
 }
 
 // HandleGetTunnelLogs GET /api/tunnel-logs
