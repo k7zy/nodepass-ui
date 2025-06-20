@@ -68,6 +68,9 @@ importers:
       framer-motion:
         specifier: 11.13.1
         version: 11.13.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6
       intl-messageformat:
         specifier: 10.7.16
         version: 10.7.16

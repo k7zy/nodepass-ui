@@ -1,7 +1,7 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import https from 'https';
 import http from 'http';
-import { logger } from '@/lib/server/logger';
+import { logger } from '@/lib/logger';
 import fetch, { RequestInit, Response } from 'node-fetch';
 import type { Agent } from 'http';
 import dns from 'dns';
