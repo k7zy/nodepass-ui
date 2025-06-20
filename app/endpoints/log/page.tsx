@@ -92,11 +92,6 @@ export default function LogQueryPage(){
           </Button>
           <h1 className="text-lg md:text-2xl font-bold truncate">日志查询</h1>
         </div>
-        <Button isIconOnly color="danger" variant="light" className="relative bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20" onPress={()=>router.push(`/endpoints/recycle?id=${endpointId}`)}>
-          <Badge color="danger" size="sm" content={recycleCount} className="absolute -top-1 -right-1 pointer-events-none">
-            <FontAwesomeIcon icon={faTrash} />
-          </Badge>
-        </Button>
       </div>
       {/* 查询表单 */}
       <div className="flex flex-wrap md:flex-nowrap items-end gap-2">

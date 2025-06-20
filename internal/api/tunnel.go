@@ -137,7 +137,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		Max:           maxVal,
 	}
 
-	log.Infof("[API.%v] 创建隧道请求: %v", req.EndpointID, req.Name)
+	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
 
 	newTunnel, err := h.tunnelService.CreateTunnel(req)
 	if err != nil {
@@ -346,7 +346,7 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，遭遇无法删除旧实例: " + err.Error()})
 			return
 		}
-		log.Infof("[API.%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
+		log.Infof("[Master-%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
 
 		// 工具函数解析 int 字段
 		parseInt := func(j json.RawMessage) (int, error) {
@@ -391,7 +391,7 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
 			return
 		}
-		log.Infof("[API.%v] 编辑实例=>创建新实例: %v", rawCreate.EndpointID, newTunnel.InstanceID)
+		log.Infof("[Master-%v] 编辑实例=>创建新实例: %v", rawCreate.EndpointID, newTunnel.InstanceID)
 
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功", Tunnel: newTunnel})
 		return

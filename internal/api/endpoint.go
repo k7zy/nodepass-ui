@@ -96,9 +96,9 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 	// 创建成功后，异步启动 SSE 监听
 	if h.sseManager != nil && newEndpoint != nil {
 		go func(ep *endpoint.Endpoint) {
-			log.Infof("[API.%v] 创建成功，准备启动 SSE 监听", ep.ID)
+			log.Infof("[Master-%v] 创建成功，准备启动 SSE 监听", ep.ID)
 			if err := h.sseManager.ConnectEndpoint(ep.ID, ep.URL, ep.APIPath, ep.APIKey); err != nil {
-				log.Errorf("[API.%v] 启动 SSE 监听失败: %v", ep.ID, err)
+				log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", ep.ID, err)
 			}
 		}(newEndpoint)
 	}
@@ -191,9 +191,9 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 
 	// 如果存在 SSE 监听，先断开
 	if h.sseManager != nil {
-		log.Infof("[API.%v] 删除端点前，先断开 SSE 监听", id)
+		log.Infof("[Master-%v] 删除端点前，先断开 SSE 监听", id)
 		h.sseManager.DisconnectEndpoint(id)
-		log.Infof("[API.%v] 已断开 SSE 监听", id)
+		log.Infof("[Master-%v] 已断开 SSE 监听", id)
 	}
 
 	if err := h.endpointService.DeleteEndpoint(id); err != nil {
@@ -205,7 +205,7 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	log.Infof("[API.%v] 端点及其隧道已删除", id)
+	log.Infof("[Master-%v] 端点及其隧道已删除", id)
 
 	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
 		Success: true,
@@ -287,9 +287,9 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 			go func(eid int64) {
 				ep, err := h.endpointService.GetEndpointByID(eid)
 				if err == nil {
-					log.Infof("[API.%v] 手动重连端点，启动 SSE", eid)
+					log.Infof("[Master-%v] 手动重连端点，启动 SSE", eid)
 					if err := h.sseManager.ConnectEndpoint(eid, ep.URL, ep.APIPath, ep.APIKey); err != nil {
-						log.Errorf("[API.%v] 手动重连端点失败: %v", eid, err)
+						log.Errorf("[Master-%v] 手动重连端点失败: %v", eid, err)
 					}
 				}
 			}(id)
@@ -298,14 +298,14 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 	case "disconnect":
 		if h.sseManager != nil {
 			go func(eid int64) {
-				log.Infof("[API.%v] 手动断开端点 SSE", eid)
+				log.Infof("[Master-%v] 手动断开端点 SSE", eid)
 				h.sseManager.DisconnectEndpoint(eid)
 
 				// 更新端点状态为 OFFLINE
 				if err := h.endpointService.UpdateEndpointStatus(eid, endpoint.StatusOffline); err != nil {
-					log.Errorf("[API.%v] 更新端点状态为 OFFLINE 失败: %v", eid, err)
+					log.Errorf("[Master-%v] 更新端点状态为 OFFLINE 失败: %v", eid, err)
 				} else {
-					log.Infof("[API.%v] 端点状态已更新为 OFFLINE", eid)
+					log.Infof("[Master-%v] 端点状态已更新为 OFFLINE", eid)
 				}
 			}(id)
 		}
@@ -828,7 +828,7 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 
 // refreshTunnels 同步指定端点的隧道信息
 func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
-	log.Infof("[Req] 刷新端点 %v 的隧道信息", endpointID)
+	log.Infof("[API] 刷新端点 %v 的隧道信息", endpointID)
 	// 获取端点信息
 	ep, err := h.endpointService.GetEndpointByID(endpointID)
 	if err != nil {
@@ -894,7 +894,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 				tx.Rollback()
 				return err
 			}
-			log.Infof("[Req] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
+			log.Infof("[API] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
 		} else {
 			// 更新已有隧道（除 name 外其它字段全部更新）
 			_, err = tx.Exec(`UPDATE "Tunnel" SET 
@@ -909,7 +909,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 				tx.Rollback()
 				return err
 			}
-			log.Infof("[Req] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
+			log.Infof("[API] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
 		}
 	}
 
@@ -930,14 +930,14 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					tx.Rollback()
 					return err
 				}
-				log.Infof("[Req] 端点 %d 更新：删除隧道 %v", endpointID, id)
+				log.Infof("[API] 端点 %d 更新：删除隧道 %v", endpointID, id)
 			}
 		}
 	}
 
 	// 更新端点隧道数量
 	_, _ = tx.Exec(`UPDATE "Endpoint" SET tunnelCount = (SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?) WHERE id = ?`, endpointID, endpointID)
-	log.Infof("[Req] 端点 %d 更新：更新隧道数量", endpointID)
+	log.Infof("[API] 端点 %d 更新：更新隧道数量", endpointID)
 	return tx.Commit()
 }
 

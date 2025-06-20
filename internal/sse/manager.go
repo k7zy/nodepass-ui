@@ -41,7 +41,7 @@ func NewManager(db *sql.DB, service *Service) *Manager {
 		service:     service,
 		db:          db,
 		connections: make(map[int64]*EndpointConnection),
-		jobs:        make(chan eventJob, 1024), // 缓冲可按需调整
+		jobs:        make(chan eventJob, 4096), // 缓冲可按需调整 //    size := getEnvInt("SSE_JOB_BUFFER", 4096)
 	}
 }
 
@@ -51,7 +51,7 @@ func (m *Manager) InitializeSystem() error {
 	// 统计需要重连的端点数量（过滤掉已明确失败的端点）
 	var total int
 	if err := m.db.QueryRow(`SELECT COUNT(*) FROM "Endpoint" WHERE status != 'FAIL'`).Scan(&total); err == nil {
-		log.Infof("扫描到重连端点数量: %d", total)
+		log.Infof("扫描到需重连的端点数量: %d", total)
 	}
 
 	// 获取所有端点
@@ -79,7 +79,7 @@ func (m *Manager) InitializeSystem() error {
 		}
 
 		if err := m.ConnectEndpoint(endpoint.ID, endpoint.URL, endpoint.APIPath, endpoint.APIKey); err != nil {
-			log.Errorf("[API.%d]连接失败%v", endpoint.ID, err)
+			log.Errorf("[Master-%d]连接失败%v", endpoint.ID, err)
 		}
 	}
 
@@ -88,13 +88,13 @@ func (m *Manager) InitializeSystem() error {
 
 // ConnectEndpoint 连接端点SSE
 func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string) error {
-	log.Infof("[API.%d]尝试连接->%s", endpointID, url)
+	log.Infof("[Master-%d]尝试连接->%s", endpointID, url)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// 如果已存在连接，先关闭
 	if conn, exists := m.connections[endpointID]; exists {
-		log.Infof("[API.%d]已存在连接，先关闭", endpointID)
+		log.Infof("[Master-%d]已存在连接，先关闭", endpointID)
 		conn.Cancel()
 		delete(m.connections, endpointID)
 	}
@@ -138,17 +138,17 @@ func (m *Manager) DisconnectEndpoint(endpointID int64) {
 	defer m.mu.Unlock()
 
 	if conn, exists := m.connections[endpointID]; exists {
-		log.Infof("[API.%d]正在断开连接", endpointID)
+		log.Infof("[Master-%d]正在断开连接", endpointID)
 		conn.Cancel()
 		delete(m.connections, endpointID)
-		log.Infof("[API.%d]连接已断开", endpointID)
+		log.Infof("[Master-%d]连接已断开", endpointID)
 	}
 }
 
 // listenSSE 使用 r3labs/sse 监听端点
 func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	sseURL := fmt.Sprintf("%s%s/events", conn.URL, conn.APIPath)
-	log.Infof("[API.%d]开始监听SSE", conn.EndpointID)
+	log.Infof("[Master-%d]开始监听SSE", conn.EndpointID)
 
 	client := sse.NewClient(sseURL)
 	client.Headers["X-API-Key"] = conn.APIKey
@@ -163,7 +163,7 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	// 在独立 goroutine 中订阅；SubscribeChanRawWithContext 会阻塞直至 ctx.Done()
 	go func() {
 		if err := client.SubscribeChanRawWithContext(ctx, events); err != nil {
-			log.Errorf("[API.%d]SSE订阅失败 %v", conn.EndpointID, err)
+			log.Errorf("[Master-%d]SSE订阅失败 %v", conn.EndpointID, err)
 		}
 	}()
 
@@ -175,20 +175,20 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 		// case ev, ok := <-events:
 		case ev := <-events:
 			// if !ok {
-			// 	log.Warnf("[API.%d]SSE事件通道已关闭", conn.EndpointID)
+			// 	log.Warnf("[Master-%d]SSE事件通道已关闭", conn.EndpointID)
 			// 	return
 			// }
 			// if ev == nil {
 			// 	continue
 			// }
-			log.Debugf("[API.%d]消息: %s", conn.EndpointID, ev.Data)
+			log.Debugf("[Master-%d]消息: %s", conn.EndpointID, ev.Data)
 
 			// 投递到全局 worker pool 异步处理
 			select {
 			case m.jobs <- eventJob{endpointID: conn.EndpointID, payload: string(ev.Data)}:
 			default:
 				// 如果队列已满，记录告警，避免阻塞 r3labs 读取协程
-				log.Warnf("[API.%d]事件处理队列已满，丢弃消息", conn.EndpointID)
+				log.Warnf("[Master-%d]事件处理队列已满，丢弃消息", conn.EndpointID)
 			}
 		}
 	}
@@ -210,13 +210,13 @@ func (m *Manager) markEndpointFail(endpointID int64) {
 	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'FAIL', updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
 	if err != nil {
 		// 更新失败直接返回
-		log.Errorf("[API.%d]更新状态为 FAIL 失败 %v", endpointID, err)
+		log.Errorf("[Master-%d]更新状态为 FAIL 失败 %v", endpointID, err)
 		return
 	}
 
 	// 仅当确实修改了行时再打印成功日志
 	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
-		log.Infof("[API.%d]更新状态为 FAIL", endpointID)
+		log.Infof("[Master-%d]更新状态为 FAIL", endpointID)
 	}
 }
 
@@ -226,14 +226,14 @@ func (m *Manager) markEndpointOnline(endpointID int64) {
 	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'ONLINE', updatedAt = CURRENT_TIMESTAMP WHERE id = ? and status != 'ONLINE'`, endpointID)
 	if err != nil {
 		// 更新失败，记录错误并返回
-		log.Errorf("[API.%d]更新状态为 ONLINE 失败 %v", endpointID, err)
+		log.Errorf("[Master-%d]更新状态为 ONLINE 失败 %v", endpointID, err)
 		return
 	}
 
 	// 更新成功才输出成功日志
 	// 仅当确实修改了行时再打印成功日志
 	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
-		log.Infof("[API.%d]更新状态为 ONLINE", endpointID)
+		log.Infof("[Master-%d]更新状态为 ONLINE", endpointID)
 	}
 }
 
@@ -268,7 +268,7 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 	}
 
 	if err := json.Unmarshal([]byte(payload), &event); err != nil {
-		log.Errorf("[API.%d]解码 SSE JSON 失败 %v", endpointID, err)
+		log.Errorf("[Master-%d]解码 SSE JSON 失败 %v", endpointID, err)
 		return
 	}
 
@@ -293,7 +293,7 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 		UDPTx  int64  `json:"udptx"`
 	}
 	if err := json.Unmarshal(event.Instance, &inst); err != nil {
-		log.Errorf("[API.%d]解析实例数据失败 %v", endpointID, err)
+		log.Errorf("[Master-%d]解析实例数据失败 %v", endpointID, err)
 		return
 	}
 	if inst.ID == "" {
@@ -316,6 +316,6 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 	}
 
 	if err := m.service.ProcessEvent(endpointID, evt); err != nil {
-		log.Errorf("[API.%d]处理事件失败 %v", endpointID, err)
+		log.Errorf("[Master-%d]处理事件失败 %v", endpointID, err)
 	}
 }

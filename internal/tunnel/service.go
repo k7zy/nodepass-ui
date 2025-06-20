@@ -154,7 +154,7 @@ func NewService(db *sql.DB) *Service {
 
 // GetTunnels 获取所有隧道列表
 func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
-	log.Debugf("[Req] 获取所有隧道列表")
+	log.Debugf("[API] 获取所有隧道列表")
 	query := `
 		SELECT 
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,
@@ -259,7 +259,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 
 // CreateTunnel 创建新隧道
 func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
-	log.Infof("[Req] 创建隧道: %v", req.Name)
+	log.Infof("[API] 创建隧道: %v", req.Name)
 	// 检查端点是否存在
 	var endpointURL, endpointAPIPath, endpointAPIKey string
 	err := s.db.QueryRow(
@@ -448,7 +448,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 
 // DeleteTunnel 删除隧道
 func (s *Service) DeleteTunnel(instanceID string) error {
-	log.Infof("[Req] 删除隧道: %v", instanceID)
+	log.Infof("[API] 删除隧道: %v", instanceID)
 	// 获取隧道信息
 	var tunnel struct {
 		ID         int64
@@ -537,7 +537,7 @@ func (s *Service) UpdateTunnelStatus(instanceID string, status TunnelStatus) err
 
 // ControlTunnel 控制隧道状态（启动/停止/重启）
 func (s *Service) ControlTunnel(req TunnelActionRequest) error {
-	log.Infof("[Req] 控制隧道状态: %v => %v", req.InstanceID, req.Action)
+	log.Infof("[API] 控制隧道状态: %v => %v", req.InstanceID, req.Action)
 	// 获取隧道和端点信息
 	var tunnel struct {
 		ID         int64
@@ -650,7 +650,7 @@ func formatTrafficBytes(bytes int64) string {
 
 // UpdateTunnel 更新隧道配置
 func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
-	log.Infof("[Req] 更新隧道: %v", req.ID)
+	log.Infof("[API] 更新隧道: %v", req.ID)
 	// 检查隧道是否存在
 	var exists bool
 	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Tunnel" WHERE id = ?)`, req.ID).Scan(&exists)
@@ -842,7 +842,7 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 // 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
 // timeout 为等待的最长时长
 func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, recycle bool) error {
-	log.Infof("[Req] 删除隧道: %v", instanceID)
+	log.Infof("[API] 删除隧道: %v", instanceID)
 	// 获取隧道及端点信息（与 DeleteTunnel 中相同，但不删除本地记录）
 	var tunnel struct {
 		ID         int64
@@ -899,7 +899,7 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	}
 
 	// 超时仍未删除，执行本地强制删除并刷新计数
-	log.Warnf("[Req] 等待删除超时，执行本地删除: %v", instanceID)
+	log.Warnf("[API] 等待删除超时，执行本地删除: %v", instanceID)
 
 	// 删除隧道记录
 	result, err := s.db.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, tunnel.ID)
@@ -937,7 +937,7 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 
 // RenameTunnel 仅修改隧道名称，不调用远端 API
 func (s *Service) RenameTunnel(id int64, newName string) error {
-	log.Infof("[Req] 重命名隧道: %v", newName)
+	log.Infof("[API] 重命名隧道: %v", newName)
 
 	// 检查名称重复
 	var exists bool

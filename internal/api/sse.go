@@ -54,7 +54,7 @@ func (h *SSEHandler) HandleGlobalSSE(w http.ResponseWriter, r *http.Request) {
 	// 保持连接直到客户端断开
 	<-r.Context().Done()
 
-	log.Infof("全局SSE连接关闭,clientID=%s remote=%s", clientID, r.RemoteAddr)
+	// log.Infof("全局SSE连接关闭,clientID=%s remote=%s", clientID, r.RemoteAddr)
 }
 
 // HandleTunnelSSE 处理隧道SSE连接
