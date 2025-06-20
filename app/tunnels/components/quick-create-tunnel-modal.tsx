@@ -25,7 +25,7 @@ interface QuickCreateTunnelModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
-  mode: 'create' | 'edit';
+  mode?: 'create' | 'edit';
   editData?: Partial<Record<string, any>> & { id?: string };
 }
 

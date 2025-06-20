@@ -271,7 +271,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
       <QuickCreateTunnelModal
         isOpen={isQuickOpen}
         onOpenChange={setIsQuickOpen}
-        onCreated={onRefresh}
+        onSaved={onRefresh}
       />
     </div>
   );
