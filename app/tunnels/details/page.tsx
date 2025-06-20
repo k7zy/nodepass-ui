@@ -359,14 +359,19 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         
         // 检查日志数据格式
         if (data.logs.length > 0 && typeof data.logs[0] === 'object') {
-          // 新格式：对象数组，包含时间信息
-          setLogs(data.logs);
+          // 新格式：对象数组，包含时间信息 - 需要处理ANSI颜色
+          const processedLogs = data.logs.map((log: any) => ({
+            ...log,
+            message: processAnsiColors(log.message), // 应用ANSI颜色处理
+            isHtml: true // 启用HTML渲染
+          }));
+          setLogs(processedLogs);
         } else {
           // 旧格式：字符串数组，需要转换
           const formattedLogs = data.logs.map((message: string, index: number) => ({
             id: index + 1,
-            message,
-            isHtml: true,
+            message: processAnsiColors(message), // 应用ANSI颜色处理
+            isHtml: true, // 启用HTML渲染
             traffic: {
               tcpRx: 0,
               tcpTx: 0,
