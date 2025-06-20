@@ -2,8 +2,8 @@ name: Docker CI (beta)
 
 on:
   push:
-    branches:
-      - "*-beta"
+#    branches:
+#      - "*-beta"
     tags:
       - "v*.*.*.beta*"
       - "v*.*.*-beta*"
