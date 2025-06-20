@@ -452,7 +452,7 @@ export default function TunnelsPage() {
         );
       case "actions":
         return (
-          <div className="flex justify-center gap-1">
+          <div className="flex justify-center gap-1 ">
             <Button
               isIconOnly
               variant="light"
@@ -708,7 +708,7 @@ export default function TunnelsPage() {
                     <TableColumn
                       key={column.key}
                       hideHeader={false}
-                      align={column.key === "actions" ? "center" : "start"}
+                      className={column.key === "actions" ? "w-[140px]" : ""}
                     >
                       {column.label}
                     </TableColumn>
