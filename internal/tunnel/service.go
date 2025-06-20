@@ -154,7 +154,7 @@ func NewService(db *sql.DB) *Service {
 
 // GetTunnels 获取所有隧道列表
 func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
-	log.Debugf("[API] 获取所有隧道列表")
+	// log.Debugf("[API] 获取所有隧道列表")
 	query := `
 		SELECT 
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,

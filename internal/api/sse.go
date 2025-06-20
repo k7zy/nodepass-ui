@@ -45,7 +45,7 @@ func (h *SSEHandler) HandleGlobalSSE(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	log.Infof("前端建立全局SSE连接,clientID=%s remote=%s", clientID, r.RemoteAddr)
+	// log.Infof("前端建立全局SSE连接,clientID=%s remote=%s", clientID, r.RemoteAddr)
 
 	// 添加客户端
 	h.sseService.AddClient(clientID, w)
@@ -81,7 +81,7 @@ func (h *SSEHandler) HandleTunnelSSE(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	log.Infof("前端请求隧道SSE订阅,tunnelID=%s clientID=%s remote=%s", tunnelID, clientID, r.RemoteAddr)
+	// log.Infof("前端请求隧道SSE订阅,tunnelID=%s clientID=%s remote=%s", tunnelID, clientID, r.RemoteAddr)
 
 	// 添加客户端并订阅隧道
 	h.sseService.AddClient(clientID, w)
@@ -94,7 +94,7 @@ func (h *SSEHandler) HandleTunnelSSE(w http.ResponseWriter, r *http.Request) {
 	// 保持连接直到客户端断开
 	<-r.Context().Done()
 
-	log.Infof("隧道SSE连接关闭,tunnelID=%s clientID=%s remote=%s", tunnelID, clientID, r.RemoteAddr)
+	// log.Infof("隧道SSE连接关闭,tunnelID=%s clientID=%s remote=%s", tunnelID, clientID, r.RemoteAddr)
 }
 
 // HandleTestSSEEndpoint 测试端点SSE连接

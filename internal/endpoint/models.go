@@ -57,4 +57,4 @@ type EndpointResponse struct {
 	Message  string      `json:"message,omitempty"`
 	Error    string      `json:"error,omitempty"`
 	Endpoint interface{} `json:"endpoint,omitempty"`
-} 
+}

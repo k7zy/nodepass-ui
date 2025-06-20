@@ -11,14 +11,14 @@ import (
 
 // InstanceHandler 实例相关的处理器
 type InstanceHandler struct {
-	db             *sql.DB
+	db              *sql.DB
 	instanceService *instance.Service
 }
 
 // NewInstanceHandler 创建实例处理器
 func NewInstanceHandler(db *sql.DB, instanceService *instance.Service) *InstanceHandler {
 	return &InstanceHandler{
-		db:             db,
+		db:              db,
 		instanceService: instanceService,
 	}
 }
@@ -178,4 +178,4 @@ func (h *InstanceHandler) HandleControlInstance(w http.ResponseWriter, r *http.R
 	// 返回成功响应
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
-} 
+}

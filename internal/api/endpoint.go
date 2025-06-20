@@ -302,11 +302,11 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 				h.sseManager.DisconnectEndpoint(eid)
 
 				// 更新端点状态为 OFFLINE
-				if err := h.endpointService.UpdateEndpointStatus(eid, endpoint.StatusOffline); err != nil {
-					log.Errorf("[Master-%v] 更新端点状态为 OFFLINE 失败: %v", eid, err)
-				} else {
-					log.Infof("[Master-%v] 端点状态已更新为 OFFLINE", eid)
-				}
+				// if err := h.endpointService.UpdateEndpointStatus(eid, endpoint.StatusOffline); err != nil {
+				// 	log.Errorf("[Master-%v] 更新端点状态为 OFFLINE 失败: %v", eid, err)
+				// } else {
+				// 	log.Infof("[Master-%v] 端点状态已更新为 OFFLINE", eid)
+				// }
 			}(id)
 		}
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: true, Message: "端点已断开"})

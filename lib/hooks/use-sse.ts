@@ -13,7 +13,7 @@ export function useGlobalSSE(options: SSEOptions = {}) {
 
   useEffect(() => {
     const url = buildApiUrl('/api/sse/global');
-    console.log(`[前端SSE] 尝试建立SSE连接`, { url });
+    console.log(`[前端SSE] 尝试建立全局SSE连接`, { url });
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
@@ -28,9 +28,9 @@ export function useGlobalSSE(options: SSEOptions = {}) {
         const data = JSON.parse(event.data);
         console.log('[前端SSE] 解析后的全局数据', data);
         
-        // 检查是否是空对象确认消息
-        if (Object.keys(data).length === 0) {
-          console.log(`[前端SSE] ✅ 收到SSE连接确认消息`);
+        // 检查连接成功消息
+        if (data.type === 'connected') {
+          console.log(`[前端SSE] ✅ 收到SSE连接成功消息`);
           if (options.onConnected) {
             options.onConnected();
           }
@@ -74,6 +74,7 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
       return;
     }
 
+    // const url = `http://localhost:3000/api/sse/tunnel/${instanceId}`;
     const url = buildApiUrl(`/api/sse/tunnel/${instanceId}`);
     console.log(`[前端SSE] 尝试建立隧道SSE连接`, { url, instanceId });
 
@@ -84,9 +85,9 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
       try {
         const data = JSON.parse(event.data);
         
-        // 检查是否是空对象确认消息
-        if (Object.keys(data).length === 0) {
-          console.log(`[前端SSE] ✅ 收到隧道连接确认消息`);
+        // 检查连接成功消息
+        if (data.type === 'connected') {
+          console.log(`[前端SSE] ✅ 收到隧道连接成功消息`);
           if (options.onConnected) {
             options.onConnected();
           }

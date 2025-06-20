@@ -427,56 +427,71 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   });
   
   // 使用实例SSE监听更新 - 使用统一的SSE hook
+  console.log('🚀 [前端SSE] 准备订阅SSE:', {
+    instanceId: tunnelInfo?.instanceId,
+    isEmpty: !tunnelInfo?.instanceId,
+    tunnelInfo: tunnelInfo
+  });
+  
   useTunnelSSE(tunnelInfo?.instanceId || '', {
     onMessage: (data) => {
-      console.log('[前端SSE] 收到实例SSE消息', data);
+      console.log('🔥 [前端SSE] 收到消息！', data);
+      console.log('🔥 [前端SSE] 消息类型:', data.eventType);
+      console.log('🔥 [前端SSE] 是否有logs:', !!data.logs);
       
-      // 处理log类型的事件
-      if (data.type === 'log' && data.logs) {
-        // 使用递增计数器确保唯一ID
-        logCounterRef.current += 1;
-        const newLog = {
-          id: logCounterRef.current,
-          message: processAnsiColors(data.logs), // 使用ANSI颜色处理函数
-          isHtml: true, // 启用HTML格式渲染
-          traffic: {
-            tcpRx: data.instance?.tcprx || 0,
-            tcpTx: data.instance?.tcptx || 0,
-            udpRx: data.instance?.udprx || 0,
-            udpTx: data.instance?.udptx || 0
-          },
-          timestamp: new Date(data.time || Date.now())
-        };
-        
-        // 将新日志追加到控制台
-        setLogs(prev => [newLog, ...prev].slice(0, 100));
-        
-        // 滚动到底部显示最新日志
-        setTimeout(scrollToBottom, 50);
-        
-        console.log('[前端SSE] 处理log事件', {
-          原始日志内容: data.logs,
-          处理后日志内容: newLog.message,
-          流量数据: newLog.traffic,
-          日志ID: newLog.id
-        });
-      }
-      // 处理其他类型的事件 - 延迟更新页面数据
-      else if (data.type && data.type !== 'log') {
-        console.log('[前端SSE] 收到非log事件，准备延迟更新页面数据', {
-          事件类型: data.type,
-          事件数据: data
-        });
-        
-        // 调用延迟更新函数
-        scheduleDataUpdate();
+      try {
+        // 处理log类型的事件
+        if (data.eventType === 'log' && data.logs) {
+          console.log('🎯 [前端SSE] 开始处理log事件');
+          
+          // 使用递增计数器确保唯一ID
+          logCounterRef.current += 1;
+          const newLog = {
+            id: logCounterRef.current,
+            message: processAnsiColors(data.logs), // 恢复ANSI颜色处理
+            isHtml: true, // 启用HTML渲染
+            traffic: {
+              tcpRx: data.instance?.tcprx || 0,
+              tcpTx: data.instance?.tcptx || 0,
+              udpRx: data.instance?.udprx || 0,
+              udpTx: data.instance?.udptx || 0
+            },
+            timestamp: new Date(data.eventTime || Date.now())
+          };
+          
+          console.log('✅ [前端SSE] 新日志对象创建完成:', newLog);
+          
+          // 将新日志追加到控制台
+          setLogs(prev => {
+            const newLogs = [newLog, ...prev].slice(0, 100);
+            console.log('✅ [前端SSE] 日志状态更新:', {
+              原数量: prev.length,
+              新数量: newLogs.length,
+              新日志ID: newLog.id
+            });
+            return newLogs;
+          });
+          
+          // 滚动到底部显示最新日志
+          setTimeout(scrollToBottom, 50);
+          
+          console.log('✅ [前端SSE] log事件处理完成');
+        } else {
+          console.log('❌ [前端SSE] 事件不匹配log条件:', {
+            eventType: data.eventType,
+            hasLogs: !!data.logs,
+            rawData: data
+          });
+        }
+      } catch (error) {
+        console.error('💥 [前端SSE] 处理消息时发生错误:', error);
       }
     },
     onError: (error) => {
-      console.error('[前端SSE] 实例SSE连接错误', error);
+      console.error('💥 [前端SSE] SSE连接错误:', error);
     },
     onConnected: () => {
-      console.log('[前端SSE] 实例SSE连接成功');
+      console.log('✅ [前端SSE] SSE连接成功!');
     }
   });
 

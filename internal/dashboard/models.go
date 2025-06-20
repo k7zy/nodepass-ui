@@ -4,12 +4,12 @@ package dashboard
 type DashboardStats struct {
 	// 总览数据
 	Overview struct {
-		TotalEndpoints   int64 `json:"totalEndpoints"`   // 端点总数
-		TotalTunnels    int64 `json:"totalTunnels"`    // 隧道总数
-		RunningTunnels  int64 `json:"runningTunnels"`  // 运行中的隧道数
-		StoppedTunnels  int64 `json:"stoppedTunnels"`  // 已停止的隧道数
-		ErrorTunnels    int64 `json:"errorTunnels"`    // 错误状态的隧道数
-		TotalTraffic    int64 `json:"totalTraffic"`    // 总流量
+		TotalEndpoints int64 `json:"totalEndpoints"` // 端点总数
+		TotalTunnels   int64 `json:"totalTunnels"`   // 隧道总数
+		RunningTunnels int64 `json:"runningTunnels"` // 运行中的隧道数
+		StoppedTunnels int64 `json:"stoppedTunnels"` // 已停止的隧道数
+		ErrorTunnels   int64 `json:"errorTunnels"`   // 错误状态的隧道数
+		TotalTraffic   int64 `json:"totalTraffic"`   // 总流量
 	} `json:"overview"`
 
 	// 流量统计
@@ -79,9 +79,9 @@ type DashboardStats struct {
 type TimeRange string
 
 const (
-	TimeRangeToday     TimeRange = "today"
-	TimeRangeWeek      TimeRange = "week"
-	TimeRangeMonth     TimeRange = "month"
-	TimeRangeYear      TimeRange = "year"
-	TimeRangeAllTime   TimeRange = "all"
-) 
+	TimeRangeToday   TimeRange = "today"
+	TimeRangeWeek    TimeRange = "week"
+	TimeRangeMonth   TimeRange = "month"
+	TimeRangeYear    TimeRange = "year"
+	TimeRangeAllTime TimeRange = "all"
+)
