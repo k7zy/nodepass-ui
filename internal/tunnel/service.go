@@ -906,9 +906,14 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	if err != nil {
 		return err
 	}
+
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
 		return errors.New("隧道删除失败")
+	}
+
+	if !recycle {
+		_, _ = s.db.Exec(`DELETE FROM "EndpointSSE" WHERE instanceId = ?`, instanceID)
 	}
 
 	// 更新端点隧道计数

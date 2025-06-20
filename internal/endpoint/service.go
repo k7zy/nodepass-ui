@@ -240,7 +240,7 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		return err
 	}
 
-	// 2) 删除关联隧道
+	// 2) 删除SSE日志
 	if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE endpointId = ?`, id); err != nil {
 		tx.Rollback()
 		return err
@@ -252,6 +252,14 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		tx.Rollback()
 		return err
 	}
+
+	// 3) 删除回收站
+	res, err = tx.Exec(`DELETE FROM "TunnelRecycle" WHERE endpointId = ?`, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	affected, err := res.RowsAffected()
 	if err != nil {
 		tx.Rollback()
