@@ -22,6 +22,7 @@ import {
   faPlay,
   faRotateRight,
   faTrash,
+  faLayerGroup,
   faBolt
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
@@ -239,6 +240,14 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
           >
             <span className="hidden sm:inline">刷新</span>
             <span className="sm:hidden">刷新</span>
+          </Button>
+          <Button 
+            size="sm"
+            color="secondary"
+            startContent={<FontAwesomeIcon icon={faLayerGroup} />}
+            onPress={() => router.push('/templates')}
+          >
+            创建场景
           </Button>
           {/* 创建按钮组 */}
           <ButtonGroup radius="sm">

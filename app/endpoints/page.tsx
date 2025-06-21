@@ -56,7 +56,8 @@ import {
   faEllipsisVertical,
   faGrip,
   faTable,
-  faFileLines
+  faFileLines,
+  faLayerGroup
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
@@ -684,6 +685,14 @@ export default function EndpointsPage() {
           <h1 className="text-2xl font-bold">API 主控管理</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
+          <Button 
+            variant="light"
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            startContent={<FontAwesomeIcon icon={faLayerGroup} />}
+            onPress={() => router.push('/templates')}
+          >
+            创建场景
+          </Button>
           <Button 
             variant="light"
             className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
