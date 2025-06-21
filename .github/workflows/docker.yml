@@ -39,20 +39,22 @@ jobs:
             # Tag触发，从tag获取版本
             TAG_VERSION=${GITHUB_REF#refs/tags/v}
             VERSION=$TAG_VERSION
-            echo "🏷️ Tag触发，版本: $VERSION"
+            IS_RELEASE=true
+            echo "🏷️ Tag触发，版本: $VERSION (正式发布)"
           else
             # 非tag触发，使用package.json版本
             VERSION=$(node -p "require('./package.json').version")
-            echo "📦 非tag触发，使用package.json版本: $VERSION"
+            IS_RELEASE=false
+            echo "📦 非tag触发，使用package.json版本: $VERSION (开发版本)"
           fi
           
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "is_release=${{ startsWith(github.ref, 'refs/tags/') }}" >> $GITHUB_OUTPUT
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
           echo "is_main=${{ github.ref == 'refs/heads/main' }}" >> $GITHUB_OUTPUT
           echo "repo_name=$REPO_LC" >> $GITHUB_OUTPUT
-          echo "📦 最终版本: $VERSION"
+          echo "📦 最终版本: $VERSION, 是否发布: $IS_RELEASE"
 
       - name: 📋 提取镜像元数据
         id: meta
@@ -60,32 +62,52 @@ jobs:
         with:
           images: ghcr.io/${{ steps.get_version.outputs.repo_name }}
           tags: |
-            type=raw,value=latest,enable=${{ steps.get_version.outputs.is_release == 'true' || steps.get_version.outputs.is_main == 'true' }}
-            type=raw,value=${{ steps.get_version.outputs.version }}
-            type=raw,value=dev,enable=${{ steps.get_version.outputs.is_main == 'true' && steps.get_version.outputs.is_release == 'false' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=NodePass Dashboard
+            org.opencontainers.image.description=NodePass Dashboard - 隧道管理面板
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
 
-      - name: 🏗️ 构建和推送 Docker 镜像 (release)
+      - name: 🏗️ 构建和推送 Docker 镜像
         uses: docker/build-push-action@v5
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=${{ steps.get_version.outputs.repo_name }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             VERSION=${{ steps.get_version.outputs.version }}
+          # 明确指定支持的架构，避免unknown/unknown
           platforms: linux/amd64,linux/arm64
-#          cache-from: |
-#            type=gha,scope=release-buildcache
-#          cache-to: |
-#            type=gha,mode=max,scope=release-buildcache
+          # 启用构建缓存以提高速度
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+      - name: Sign the published Docker image
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: echo ${{ steps.meta.outputs.tags }} | tr ',' '\n' | xargs -I {} cosign sign --yes {}@${DIGEST}
+        
       - name: 📢 输出版本信息
         run: |
           echo "🏷️ 版本: ${{ steps.get_version.outputs.version }}"
-          echo "📦 镜像标签:"
-          echo "${{ steps.meta.outputs.tags }}" | tr '\n' '\n  '
-          echo "🏗️ 构建架构: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}" 
+          echo "🎯 触发方式: ${{ github.ref }}"
+          echo ""
+          echo "📦 生成的镜像标签:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
+          echo ""
+          echo "🏗️ 构建架构: linux/amd64, linux/arm64"
+          echo ""
+          echo "💡 标签说明:"
+          echo "  ✅ 正式发布版本"
+          echo "  📦 标签: latest + ${{ steps.get_version.outputs.version }}"
+          echo "  🚀 推荐使用: docker pull ghcr.io/${{ steps.get_version.outputs.repo_name }}:latest"
+          fi 

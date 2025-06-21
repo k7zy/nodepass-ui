@@ -29,16 +29,34 @@ jobs:
           
       - name: 🔧 安装CGO交叉编译工具
         run: |
-          # 安装 Windows 交叉编译工具
+          # 更新包管理器
           sudo apt-get update
+          
+          # 安装 Windows 交叉编译工具
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
           
-          # 安装 ARM64 交叉编译工具
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          # 安装 ARM 交叉编译工具
+          sudo apt-get install -y gcc-aarch64-linux-gnu      # ARM64
+          sudo apt-get install -y gcc-arm-linux-gnueabihf    # ARMv7 (hard-float)
+          sudo apt-get install -y gcc-arm-linux-gnueabi      # ARMv6 (soft-float)
           
-          # 验证编译器安装
-          x86_64-w64-mingw32-gcc --version
-          aarch64-linux-gnu-gcc --version
+          # 安装 MIPS 交叉编译工具 (路由器常用)
+          sudo apt-get install -y gcc-mips-linux-gnu         # MIPS big-endian
+          sudo apt-get install -y gcc-mipsel-linux-gnu       # MIPS little-endian
+          sudo apt-get install -y gcc-mips64-linux-gnuabi64  # MIPS64
+          sudo apt-get install -y gcc-mips64el-linux-gnuabi64 # MIPS64 little-endian
+          
+          # 安装其他架构工具
+          sudo apt-get install -y gcc-powerpc64le-linux-gnu  # PowerPC 64-bit LE
+          sudo apt-get install -y gcc-s390x-linux-gnu        # IBM System z
+          sudo apt-get install -y gcc-riscv64-linux-gnu      # RISC-V 64-bit
+          
+          # 验证主要编译器安装
+          echo "🔍 验证编译器安装:"
+          x86_64-w64-mingw32-gcc --version | head -1
+          aarch64-linux-gnu-gcc --version | head -1
+          arm-linux-gnueabihf-gcc --version | head -1
+          arm-linux-gnueabi-gcc --version | head -1
           
           echo "✅ 交叉编译工具安装完成"
 
