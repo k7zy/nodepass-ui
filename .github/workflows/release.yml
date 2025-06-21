@@ -66,12 +66,16 @@ jobs:
           
           # 创建一个临时标签用于 GoReleaser
           TEMP_TAG="v${VERSION}"
-          if ! git tag -l | grep -q "^$TEMP_TAG$"; then
-            echo "📌 Creating temporary tag: $TEMP_TAG"
-            git tag "$TEMP_TAG"
-          else
-            echo "📌 Tag $TEMP_TAG already exists"
+          
+          # 检查标签是否已存在
+          if git tag -l | grep -q "^$TEMP_TAG$"; then
+            echo "🗑️ 删除已存在的标签: $TEMP_TAG"
+            git tag -d "$TEMP_TAG"
           fi
+          
+          # 在当前提交上创建新标签
+          echo "📌 在提交 $(git rev-parse HEAD) 上创建标签: $TEMP_TAG"
+          git tag "$TEMP_TAG" HEAD
           
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TEMP_TAG" >> $GITHUB_OUTPUT
