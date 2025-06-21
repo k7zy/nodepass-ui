@@ -56,11 +56,7 @@ func main() {
 	}
 
 	// 打开数据库连接
-<<<<<<< HEAD
 	db, err := sql.Open("sqlite3", "/tmp/sqlite.db")
-=======
-	db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=10000&_fk=1&_sync=NORMAL&_cache_size=1000000")
->>>>>>> a83e3e364296ff3d991e5ade49b24955bbdad448
 	if err != nil {
 		log.Errorf("连接数据库失败: %v", err)
 	}
