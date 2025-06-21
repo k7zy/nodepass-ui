@@ -34,6 +34,12 @@ func main() {
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
 	flag.Parse()
 
+	// 确保public目录存在
+	dbDir := "public"
+	if err := ensureDir(dbDir); err != nil {
+		log.Errorf("创建数据库目录失败: %v", err)
+		return
+	}
 	// 如果指定了 --resetpwd，则进入密码重置流程后退出
 	if *resetPwdCmd {
 		// 打开数据库
@@ -341,6 +347,15 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+// ensureDir 确保目录存在，如果不存在则创建
+func ensureDir(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		log.Infof("创建目录: %s", dir)
+		return os.MkdirAll(dir, 0755)
+	}
 	return nil
 }
 

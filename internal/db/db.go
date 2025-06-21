@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -18,10 +20,20 @@ var (
 func DB() *sql.DB {
 	once.Do(func() {
 		var err error
+
+		// 确保public目录存在
+		dbDir := "public"
+		if err := ensureDir(dbDir); err != nil {
+			log.Fatalf("创建数据库目录失败: %v", err)
+		}
+
+		// 数据库文件路径
+		dbPath := filepath.Join(dbDir, "sqlite.db")
+
 		// 优化的连接字符串，增加更长的超时时间和优化配置
-		db, err = sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=10000&_fk=1&_sync=NORMAL&_cache_size=1000000")
+		db, err = sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_busy_timeout=10000&_fk=1&_sync=NORMAL&_cache_size=1000000")
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("打开数据库失败: %v", err)
 		}
 
 		// 优化连接池配置
@@ -32,10 +44,21 @@ func DB() *sql.DB {
 
 		// 初始化表结构
 		if err := initSchema(db); err != nil {
-			log.Fatal(err)
+			log.Fatalf("初始化数据库表结构失败: %v", err)
 		}
+
+		log.Printf("数据库初始化成功: %s", dbPath)
 	})
 	return db
+}
+
+// ensureDir 确保目录存在，如果不存在则创建
+func ensureDir(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		log.Printf("创建目录: %s", dir)
+		return os.MkdirAll(dir, 0755)
+	}
+	return nil
 }
 
 // ExecuteWithRetry 带重试机制的数据库执行
