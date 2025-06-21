@@ -798,11 +798,30 @@ func (s *Service) tunnelExists(tx *sql.Tx, endpointID int64, instanceID string) 
 }
 
 func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) error {
+	// 检查是否已存在相同 instanceID 的隧道
 	exists, err := s.tunnelExists(tx, e.EndpointID, e.InstanceID)
-	if err != nil || exists {
-		log.Warnf("[Master-%d#SSE]Inst.%s已存在记录，跳过创建", e.EndpointID, e.InstanceID)
+	if err != nil {
 		return err
 	}
+
+	if exists {
+		log.Infof("[Master-%d#SSE]Inst.%s已存在记录，更新状态而非创建", e.EndpointID, e.InstanceID)
+		// 如果已存在，更新状态和信息而不是创建新记录
+		_, err = tx.Exec(`UPDATE "Tunnel" SET 
+			status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, 
+			lastEventTime = ?, updatedAt = ? 
+			WHERE endpointId = ? AND instanceId = ?`,
+			ptrStringDefault(e.Status, "running"), e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx,
+			e.EventTime, time.Now(), e.EndpointID, e.InstanceID)
+		if err != nil {
+			log.Errorf("[Master-%d#SSE]Inst.%s更新隧道状态失败,err=%v", e.EndpointID, e.InstanceID, err)
+		} else {
+			log.Infof("[Master-%d#SSE]Inst.%s更新隧道状态成功", e.EndpointID, e.InstanceID)
+		}
+		return err
+	}
+
+	// 如果不存在，才创建新记录（使用 instanceID 作为默认名称）
 	name := e.InstanceID
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "inherit"
