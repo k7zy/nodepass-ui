@@ -11,9 +11,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
-    # 过滤掉 beta 标签，只处理正式版本
-    if: ${{ !contains(github.ref, 'beta') }}
 
     steps:
       - name: Checkout
