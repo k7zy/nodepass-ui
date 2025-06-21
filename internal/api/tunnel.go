@@ -1185,13 +1185,137 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		})
 
 	case "intranet":
-		// 内网穿透模式暂时不实现，留待后续扩展
-		w.WriteHeader(http.StatusNotImplemented)
+		if req.Inbounds == nil || req.Outbounds == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "内网穿透模式缺少inbounds或outbounds配置",
+			})
+			return
+		}
+
+		// 获取两个主控信息
+		var serverEndpoint, clientEndpoint struct {
+			ID      int64
+			URL     string
+			APIPath string
+			APIKey  string
+		}
+
+		// 获取server端主控信息（inbounds - 中转机器）
+		db := h.tunnelService.DB()
+		err := db.QueryRow(
+			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			req.Inbounds.MasterID,
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					Success: false,
+					Error:   "指定的中转主控不存在",
+				})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "查询中转主控失败",
+			})
+			return
+		}
+
+		// 获取client端主控信息（outbounds - 内网服务）
+		err = db.QueryRow(
+			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			req.Outbounds.MasterID,
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					Success: false,
+					Error:   "指定的内网服务端主控不存在",
+				})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "查询内网服务端主控失败",
+			})
+			return
+		}
+
+		// 从server端URL中提取IP
+		serverIP := strings.TrimPrefix(serverEndpoint.URL, "http://")
+		serverIP = strings.TrimPrefix(serverIP, "https://")
+		if idx := strings.Index(serverIP, ":"); idx != -1 {
+			serverIP = serverIP[:idx]
+		}
+		if idx := strings.Index(serverIP, "/"); idx != -1 {
+			serverIP = serverIP[:idx]
+		}
+
+		// 构建server端URL - 中转机器提供外部访问入口
+		serverURL := fmt.Sprintf("server://:%d/:%d",
+			req.ListenPort,
+			req.Inbounds.TargetPort,
+		)
+		if req.TLS > 0 {
+			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
+		} else {
+			serverURL += fmt.Sprintf("?log=%s", req.Log)
+		}
+
+		// 构建client端URL - 内网服务连接到中转机器，并指定目标服务IP和端口
+		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s",
+			serverIP,
+			req.ListenPort,
+			req.Outbounds.TargetHost, // 这里是用户填写的服务IP
+			req.Outbounds.TargetPort, // 这里是用户填写的服务端口
+			req.Log,
+		)
+
+		// 生成隧道名称
+		timestamp := time.Now().Unix()
+		serverTunnelName := fmt.Sprintf("template-intranet-server-%d-%d", req.Inbounds.MasterID, timestamp)
+		clientTunnelName := fmt.Sprintf("template-intranet-client-%d-%d", req.Outbounds.MasterID, timestamp)
+
+		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
+
+		// 第一步：创建server端隧道（中转机器）
+		log.Infof("[API] 步骤1: 创建server端隧道 %s", serverTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, serverURL, serverTunnelName); err != nil {
+			log.Errorf("[API] 创建server端隧道失败: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "创建server端隧道失败: " + err.Error(),
+			})
+			return
+		}
+		log.Infof("[API] 步骤1完成: server端隧道创建成功")
+
+		// 第二步：创建client端隧道（内网服务）
+		log.Infof("[API] 步骤2: 创建client端隧道 %s", clientTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(req.Outbounds.MasterID, clientURL, clientTunnelName); err != nil {
+			log.Errorf("[API] 创建client端隧道失败: %v", err)
+			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "创建client端隧道失败: " + err.Error(),
+			})
+			return
+		}
+		log.Infof("[API] 步骤2完成: client端隧道创建成功")
+		log.Infof("[API] 内网穿透隧道创建完成")
+
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: false,
-			Error:   "内网穿透模式暂未实现",
+			Success: true,
+			Message: "内网穿透隧道创建成功",
 		})
-		return
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)

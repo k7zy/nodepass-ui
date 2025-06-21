@@ -67,6 +67,11 @@ interface FormData {
   logLevel: string;
   connectionPort: string;
   accessInfo: string;
+  intranetTargetMaster: string; // 内网穿透的目标服务器
+  intranetTargetPort: string; // 内网穿透的目标端口
+  intranetExitIp: string; // 内网穿透的出口IP
+  certPath: string; // TLS 2 证书路径
+  keyPath: string; // TLS 2 密钥路径
 }
 
 interface TemplateCreateRequest {
@@ -74,6 +79,8 @@ interface TemplateCreateRequest {
   listen_port: number;
   mode: string;
   tls?: number;
+  cert_path?: string;
+  key_path?: string;
   inbounds?: {
     target_host: string;
     target_port: number;
@@ -164,7 +171,12 @@ export default function TemplatesPage() {
     tlsLevel: '1',
     logLevel: 'debug', // 默认debug级别
     connectionPort: '',
-    accessInfo: ''
+    accessInfo: '',
+    intranetTargetMaster: '',
+    intranetTargetPort: '',
+    intranetExitIp: '',
+    certPath: '',
+    keyPath: ''
   });
 
   // 当监听类型改变时，自动设置目标IP
@@ -178,6 +190,34 @@ export default function TemplatesPage() {
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // 清空表单数据的函数
+  const resetFormData = () => {
+    setFormData({
+      userPort: '',
+      masterServer: '',
+      listenType: 'external', // 保持默认值
+      targetIp: '',
+      targetPort: '',
+      targetMaster: '',
+      targetMasterPort: '',
+      tlsLevel: '1', // 保持默认值
+      logLevel: 'debug', // 保持默认值
+      connectionPort: '',
+      accessInfo: '',
+      intranetTargetMaster: '',
+      intranetTargetPort: '',
+      intranetExitIp: '',
+      certPath: '',
+      keyPath: ''
+    });
+  };
+
+  // 切换隧道模式时清空表单数据
+  const handleModeChange = (mode: string) => {
+    setSelectedMode(mode);
+    resetFormData();
   };
 
   // 从URL中提取IP/域名
@@ -221,7 +261,7 @@ export default function TemplatesPage() {
       <div className="flex items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
           <FontAwesomeIcon icon={faLayerGroup} className="text-2xl text-primary" />
-          <h2 className="text-2xl font-bold">选择隧道模式</h2>
+          <h2 className="text-2xl font-bold">选择应用模式</h2>
         </div>
         <Button
             variant="flat"
@@ -238,7 +278,7 @@ export default function TemplatesPage() {
             key={mode.id}
             isPressable
             isHoverable
-            onPress={() => setSelectedMode(mode.id)}
+            onPress={() => handleModeChange(mode.id)}
             className={`cursor-pointer transition-all duration-200 ${
               selectedMode === mode.id
                 ? 'ring-2 ring-primary ring-offset-2'
@@ -351,7 +391,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '中转机器[server]',
+            label: '入口机器[server]',
             type: 'relay',
             formFields: [
               {
@@ -369,7 +409,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '目标机器[client]',
+            label: '出口机器[client]',
             type: 'target',
             formFields: [
               {
@@ -401,9 +441,9 @@ export default function TemplatesPage() {
             type: 'user',
             formFields: [
               {
-                label: '服务端口',
+                label: '访问端口',
                 key: 'userPort',
-                placeholder: '例如: 8080',
+                placeholder: '8080',
                 value: formData.userPort
               }
             ]
@@ -413,11 +453,29 @@ export default function TemplatesPage() {
             type: 'relay',
             formFields: [
               {
-                label: '中转服务器',
+                label: '连接服务器',
                 key: 'masterServer',
                 type: 'select',
-                placeholder: '选择服务器',
+                placeholder: '下拉选择',
                 value: formData.masterServer,
+                options: endpoints.map(endpoint => ({
+                  value: endpoint.name,
+                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  disabled: endpoint.status === 'FAIL'
+                }))
+              }
+            ]
+          },
+          {
+            label: '内网服务[client]',
+            type: 'target',
+            formFields: [
+              {
+                label: '连接服务器',
+                key: 'intranetTargetMaster',
+                type: 'select',
+                placeholder: '下拉选择',
+                value: formData.intranetTargetMaster,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
                   label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
@@ -425,39 +483,16 @@ export default function TemplatesPage() {
                 }))
               },
               {
-                label: 'TLS级别',
-                key: 'tlsLevel',
-                type: 'select',
-                value: formData.tlsLevel,
-                placeholder: '选择TLS级别',
-                options: tlsLevels.map(level => ({
-                  value: level.value,
-                  label: level.label
-                }))
+                label: '服务IP',
+                key: 'intranetExitIp',
+                placeholder: '服务的IP',
+                value: formData.intranetExitIp
               },
               {
-                label: '日志级别',
-                key: 'logLevel',
-                type: 'select',
-                value: formData.logLevel,
-                placeholder: '选择日志级别',
-                options: logLevels.map(level => ({
-                  value: level.value,
-                  label: level.label
-                }))
-              }
-            ]
-          },
-          {
-            label: '外网访问[client]',
-            type: 'target',
-            formFields: [
-              {
-                label: '访问信息',
-                key: 'accessInfo',
-                placeholder: '将自动生成',
-                value: formData.masterServer ? `${formData.masterServer}:公网端口` : '',
-                type: 'text'
+                label: '服务端口',
+                key: 'intranetTargetPort',
+                placeholder: '3306',
+                value: formData.intranetTargetPort
               }
             ]
           }
@@ -604,7 +639,7 @@ export default function TemplatesPage() {
                  <div className="text-xs text-default-500 mb-2">
                    {selectedMode === 'single' ? '访问' : 
                     selectedMode === 'double' ? '访问' :
-                    selectedMode === 'intranet' ? '穿透' : '连接'}
+                    selectedMode === 'intranet' ? '访问' : '连接'}
                  </div>
                  <svg width="120" height="14" viewBox="0 0 120 14" className="text-blue-600">
                    {/* 双向箭头横线 */}
@@ -641,14 +676,29 @@ export default function TemplatesPage() {
                    <polygon points="110,7 102,4 102,10" fill="currentColor"/>
                  </svg>
                  
-                 {/* 双端转发的连接池配置 */}
-                 {selectedMode === 'double' && (
+                 {/* 双端转发和内网穿透的连接池配置 */}
+                 {(selectedMode === 'double' || selectedMode === 'intranet') && (
                    <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-2 shadow-sm mt-2" style={{ width: '120px' }}>
                      <div className="flex items-center gap-1 mb-2">
                        <FontAwesomeIcon icon={faGear} className="text-blue-600 text-xs" />
-                       <span className="text-xs font-medium text-blue-800">连接池</span>
+                       <span className="text-xs font-medium text-blue-800">
+                         {selectedMode === 'double' ? '连接配置' : '连接配置'}
+                       </span>
                      </div>
                      <div className="space-y-1">
+                       <div>
+                         <label className="block text-xs text-gray-700 mb-1">
+                           {selectedMode === 'double' ? '连接端口' : '连接端口'}
+                         </label>
+                         <input
+                           type="text"
+                           value={formData.connectionPort}
+                           onChange={(e) => updateField('connectionPort', e.target.value)}
+                           placeholder="10101"
+                           className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                         />
+                       </div>
+                       
                        <div>
                          <label className="block text-xs text-gray-700 mb-1">TLS</label>
                          <select 
@@ -663,15 +713,32 @@ export default function TemplatesPage() {
                            ))}
                          </select>
                        </div>
-                       <div>
-                         <label className="block text-xs text-gray-700 mb-1">连接端口</label>
-                         <input
-                           type="text"
-                           value={formData.connectionPort || '10101'}
-                           onChange={(e) => updateField('connectionPort', e.target.value)}
-                           className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
-                         />
-                       </div>
+                       
+                       {/* TLS 2 的证书配置 */}
+                       {formData.tlsLevel === '2' && (
+                         <>
+                           <div>
+                             <label className="block text-xs text-gray-700 mb-1">证书路径</label>
+                             <input
+                               type="text"
+                               value={formData.certPath}
+                               onChange={(e) => updateField('certPath', e.target.value)}
+                               placeholder="/path/to/cert.pem"
+                               className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                             />
+                           </div>
+                           <div>
+                             <label className="block text-xs text-gray-700 mb-1">密钥路径</label>
+                             <input
+                               type="text"
+                               value={formData.keyPath}
+                               onChange={(e) => updateField('keyPath', e.target.value)}
+                               placeholder="/path/to/key.pem"
+                               className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                             />
+                           </div>
+                         </>
+                       )}
                      </div>
                    </div>
                  )}
@@ -695,7 +762,7 @@ export default function TemplatesPage() {
                    : '用户可以访问指定端口来访问目标IP的服务'
                )}
               {selectedMode === 'double' && '用户可以访问本地端口，通过双端加密隧道连接到目标服务'}
-               {selectedMode === 'intranet' && '外部用户可以通过公网地址访问您的内网服务'}
+               {selectedMode === 'intranet' && '用户可以通过公网端口访问内网服务，实现内网穿透'}
              </div>
            </div>
         </CardBody>
@@ -786,7 +853,7 @@ export default function TemplatesPage() {
           return null;
         }
 
-        return {
+        const doubleRequest: TemplateCreateRequest = {
           log: formData.logLevel,
           listen_port: parseInt(formData.connectionPort),
           mode: 'bothway',
@@ -805,9 +872,37 @@ export default function TemplatesPage() {
           }
         };
 
+        // 如果是TLS 2，添加证书路径
+        if (formData.tlsLevel === '2') {
+          doubleRequest.cert_path = formData.certPath;
+          doubleRequest.key_path = formData.keyPath;
+        }
+
+        return doubleRequest;
+
       case 'intranet':
-        // 内网穿透暂未实现
-        return null;
+        if (!formData.userPort || !formData.masterServer || !formData.intranetTargetMaster || !formData.intranetTargetPort || !formData.connectionPort) {
+          return null;
+        }
+
+        return {
+          log: formData.logLevel,
+          listen_port: parseInt(formData.connectionPort),
+          mode: 'intranet',
+          tls: parseInt(formData.tlsLevel),
+          inbounds: {
+            target_host: '',
+            target_port: parseInt(formData.userPort),
+            master_id: getEndpointIdByName(formData.masterServer),
+            type: 'server'
+          },
+          outbounds: {
+            target_host: formData.intranetExitIp || '127.0.0.1',
+            target_port: parseInt(formData.intranetTargetPort),
+            master_id: getEndpointIdByName(formData.intranetTargetMaster),
+            type: 'client'
+          }
+        };
 
       default:
         return null;
@@ -830,8 +925,9 @@ export default function TemplatesPage() {
     
     // 显示进度提示
     addToast({
-      title: '正在创建隧道...',
-      description: selectedMode === 'bothway' ? '正在创建双端隧道，请稍候' : '正在创建隧道，请稍候',
+      timeout: 1,
+      title: '正在创建场景中...',
+      description: selectedMode === 'bothway' ? '正在创建场景中，请稍候' : '正在创建场景中，请稍候',
       color: 'primary'
     });
 
