@@ -33,8 +33,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
           
-          # 安装 macOS 交叉编译工具 (osxcross)
-          # 注意: 这可能需要较长时间，如果构建时间过长可以考虑移除 macOS 支持
+          # 安装 ARM64 交叉编译工具
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          
+          # 验证编译器安装
+          x86_64-w64-mingw32-gcc --version
+          aarch64-linux-gnu-gcc --version
+          
           echo "✅ 交叉编译工具安装完成"
 
       - name: 📝 获取版本信息

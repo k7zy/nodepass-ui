@@ -1,8 +1,8 @@
 version: 2
 
 builds:
-  # Linux 构建 (本地编译器)
-  - id: linux
+  # Linux AMD64 构建 (本地编译器)
+  - id: linux-amd64
     env:
       - CGO_ENABLED=1
     main: ./cmd/server
@@ -11,6 +11,24 @@ builds:
       - linux
     goarch:
       - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
+      
+  # Linux ARM64 构建 (交叉编译器)
+  - id: linux-arm64
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    main: ./cmd/server
+    binary: nodepassdash
+    goos:
+      - linux
+    goarch:
       - arm64
     flags:
       - -trimpath
@@ -38,8 +56,8 @@ builds:
     tags:
       - sqlite_omit_load_extension
       
-  # macOS 构建 (需要更复杂的交叉编译设置，暂时跳过)
-  # 如果需要 macOS 支持，建议使用 GitHub 的 macOS runner
+  # macOS 构建需要特殊设置，暂时跳过
+  # 如果需要 macOS 支持，建议使用单独的 macOS runner
 
 archives:
   - format: tar.gz
