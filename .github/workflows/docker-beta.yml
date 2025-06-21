@@ -2,8 +2,8 @@ name: Docker CI (beta)
 
 on:
   push:
-    tags:
-      - "v*.*.*-beta*"
+    tags: [ 'v*.*.*-beta*' ]
+    branches: [ '*-beta' ]
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
