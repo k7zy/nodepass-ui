@@ -66,8 +66,28 @@ archives:
         format: zip
 
 release:
+  # 自动检测预发布版本 (包含 alpha, beta, rc 等)
   prerelease: auto
-  # 当从main分支触发时，标记为预发布版本
-  name_template: "{{ if not .IsTag }}Development {{ end }}Release {{ .Tag }}"
+  # 发布名称模板
+  name_template: "NodePass Dashboard {{ .Tag }}"
   # 允许替换已存在的发布
-  replace_existing_draft: true 
+  replace_existing_draft: true
+  # 发布说明
+  header: |
+    ## NodePass Dashboard {{ .Tag }}
+    
+    ### 🎉 新版本发布
+    
+    感谢使用 NodePass Dashboard！
+    
+  footer: |
+    
+    ### 📥 下载说明
+    - **Linux**: 下载 `nodepassdash_Linux_*.tar.gz`
+    - **Windows**: 下载 `nodepassdash_Windows_*.zip`
+    - **macOS**: 暂不支持，请使用 Docker 版本
+    
+    ### 🐳 Docker 镜像
+    ```bash
+    docker pull ghcr.io/nodepass/nodepass-webui:{{ .Tag }}
+    ``` 
