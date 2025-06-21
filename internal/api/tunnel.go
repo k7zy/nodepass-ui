@@ -4,6 +4,7 @@ import (
 	log "NodePassDash/internal/log"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -950,4 +951,254 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 		Success: true,
 		Message: "隧道创建成功",
 	})
+}
+
+// HandleTemplateCreate 处理模板创建请求
+func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 定义请求结构体
+	var req struct {
+		Log        string `json:"log"`
+		ListenPort int    `json:"listen_port"`
+		Mode       string `json:"mode"`
+		TLS        int    `json:"tls,omitempty"`
+		Inbounds   *struct {
+			TargetHost string `json:"target_host"`
+			TargetPort int    `json:"target_port"`
+			MasterID   int64  `json:"master_id"`
+			Type       string `json:"type"`
+		} `json:"inbounds,omitempty"`
+		Outbounds *struct {
+			TargetHost string `json:"target_host"`
+			TargetPort int    `json:"target_port"`
+			MasterID   int64  `json:"master_id"`
+			Type       string `json:"type"`
+		} `json:"outbounds,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	log.Infof("[API] 模板创建请求: mode=%s, listen_port=%d", req.Mode, req.ListenPort)
+
+	switch req.Mode {
+	case "single":
+		if req.Inbounds == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "单端模式缺少inbounds配置",
+			})
+			return
+		}
+
+		// 获取中转主控信息
+		var endpointURL, endpointAPIPath, endpointAPIKey string
+		db := h.tunnelService.DB()
+		err := db.QueryRow(
+			"SELECT url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			req.Inbounds.MasterID,
+		).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					Success: false,
+					Error:   "指定的中转主控不存在",
+				})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "查询中转主控失败",
+			})
+			return
+		}
+
+		// 构建单端转发的URL
+		tunnelURL := fmt.Sprintf("client://:%d/%s:%d?log=%s",
+			req.ListenPort,
+			req.Inbounds.TargetHost,
+			req.Inbounds.TargetPort,
+			req.Log,
+		)
+
+		// 生成隧道名称
+		tunnelName := fmt.Sprintf("template-single-%d-%d", req.Inbounds.MasterID, time.Now().Unix())
+
+		// 使用QuickCreateTunnel创建隧道
+		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, tunnelURL, tunnelName); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "创建单端隧道失败: " + err.Error(),
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: true,
+			Message: "单端转发隧道创建成功",
+		})
+
+	case "bothway":
+		if req.Inbounds == nil || req.Outbounds == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "双端模式缺少inbounds或outbounds配置",
+			})
+			return
+		}
+
+		// 获取两个主控信息
+		var serverEndpoint, clientEndpoint struct {
+			ID      int64
+			URL     string
+			APIPath string
+			APIKey  string
+		}
+
+		// 获取server端主控信息（inbounds）
+		db := h.tunnelService.DB()
+		err := db.QueryRow(
+			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			req.Inbounds.MasterID,
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					Success: false,
+					Error:   "指定的server端主控不存在",
+				})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "查询server端主控失败",
+			})
+			return
+		}
+
+		// 获取client端主控信息（outbounds）
+		err = db.QueryRow(
+			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			req.Outbounds.MasterID,
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					Success: false,
+					Error:   "指定的client端主控不存在",
+				})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "查询client端主控失败",
+			})
+			return
+		}
+
+		// 从server端URL中提取IP
+		serverIP := strings.TrimPrefix(serverEndpoint.URL, "http://")
+		serverIP = strings.TrimPrefix(serverIP, "https://")
+		if idx := strings.Index(serverIP, ":"); idx != -1 {
+			serverIP = serverIP[:idx]
+		}
+		if idx := strings.Index(serverIP, "/"); idx != -1 {
+			serverIP = serverIP[:idx]
+		}
+
+		// 构建server端URL
+		serverURL := fmt.Sprintf("server://:%d/:%d",
+			req.ListenPort,
+			req.Inbounds.TargetPort,
+		)
+		if req.TLS > 0 {
+			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
+		} else {
+			serverURL += fmt.Sprintf("?log=%s", req.Log)
+		}
+
+		// 构建client端URL
+		clientURL := fmt.Sprintf("client://%s:%d/:%d?log=%s",
+			serverIP,
+			req.ListenPort,
+			req.Outbounds.TargetPort,
+			req.Log,
+		)
+
+		// 生成隧道名称
+		timestamp := time.Now().Unix()
+		serverTunnelName := fmt.Sprintf("template-server-%d-%d", req.Inbounds.MasterID, timestamp)
+		clientTunnelName := fmt.Sprintf("template-client-%d-%d", req.Outbounds.MasterID, timestamp)
+
+		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
+
+		// 第一步：创建server端隧道
+		log.Infof("[API] 步骤1: 创建server端隧道 %s", serverTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, serverURL, serverTunnelName); err != nil {
+			log.Errorf("[API] 创建server端隧道失败: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "创建server端隧道失败: " + err.Error(),
+			})
+			return
+		}
+		log.Infof("[API] 步骤1完成: server端隧道创建成功")
+
+		// 第二步：创建client端隧道
+		log.Infof("[API] 步骤2: 创建client端隧道 %s", clientTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(req.Outbounds.MasterID, clientURL, clientTunnelName); err != nil {
+			log.Errorf("[API] 创建client端隧道失败: %v", err)
+			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "创建client端隧道失败: " + err.Error(),
+			})
+			return
+		}
+		log.Infof("[API] 步骤2完成: client端隧道创建成功")
+		log.Infof("[API] 双端隧道创建完成")
+
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: true,
+			Message: "双端转发隧道创建成功",
+		})
+
+	case "intranet":
+		// 内网穿透模式暂时不实现，留待后续扩展
+		w.WriteHeader(http.StatusNotImplemented)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "内网穿透模式暂未实现",
+		})
+		return
+
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "不支持的隧道模式: " + req.Mode,
+		})
+		return
+	}
 }

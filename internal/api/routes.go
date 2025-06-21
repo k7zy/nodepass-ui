@@ -123,6 +123,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleGetTunnels).Methods("GET")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleCreateTunnel).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/quick", r.tunnelHandler.HandleQuickCreateTunnel).Methods("POST")
+	r.router.HandleFunc("/api/tunnels/template", r.tunnelHandler.HandleTemplateCreate).Methods("POST")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleGetTunnels).Methods("GET")
