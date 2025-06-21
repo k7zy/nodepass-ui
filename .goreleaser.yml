@@ -141,6 +141,13 @@ archives:
       {{- else if eq .Arch "arm" }}armv{{ .Arm }}
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}hf{{ end }}
+    # 包含额外文件到压缩包
+    files:
+      - dist/**/*
+      - README.md
+      - LICENSE
+    # 确保二进制文件在根目录，其他文件保持相对路径
+    wrap_in_directory: false
 
 release:
   # 自动检测预发布版本 (包含 alpha, beta, rc 等)
