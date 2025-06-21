@@ -44,7 +44,7 @@ export const NavbarLogo = () => {
     <NavbarBrand as="li" className="gap-3 max-w-fit">
       <NextLink className="flex justify-start items-center gap-2" href="/">
         <NodePassLogo />
-        <p className="font-bold text-inherit">NodePassDash</p>
+        <p className="font-bold text-inherit">NodePass</p>
       </NextLink>
     </NavbarBrand>
   );
