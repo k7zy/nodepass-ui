@@ -1,9 +1,11 @@
 package main
 
 import (
+	log "NodePassDash/internal/log"
 	"context"
 	"database/sql"
-	"log"
+	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,22 +19,53 @@ import (
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
+	"runtime"
 
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
+var Version = "dev"
+
 func main() {
+	// 命令行参数处理
+	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
+	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
+	flag.Parse()
+
+	// 如果指定了 --resetpwd，则进入密码重置流程后退出
+	if *resetPwdCmd {
+		// 打开数据库
+		db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=5000&_fk=1")
+		if err != nil {
+			log.Errorf("连接数据库失败: %v", err)
+		}
+		defer db.Close()
+
+		authService := auth.NewService(db)
+		if _, _, err := authService.ResetAdminPassword(); err != nil {
+			log.Errorf("重置密码失败: %v", err)
+		}
+		return
+	}
+
 	// 打开数据库连接
-	db, err := sql.Open("sqlite3", "./public/sqlite.db")
+	db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=10000&_fk=1&_sync=NORMAL&_cache_size=1000000")
 	if err != nil {
-		log.Fatalf("连接数据库失败: %v", err)
+		log.Errorf("连接数据库失败: %v", err)
 	}
 	defer db.Close()
 
+	// 优化连接池配置，避免过多并发连接
+	db.SetMaxOpenConns(6)
+	db.SetMaxIdleConns(3)
+	db.SetConnMaxLifetime(0)               // 连接不过期
+	db.SetConnMaxIdleTime(5 * time.Minute) // 空闲连接5分钟后关闭
+
 	// 初始化数据库表结构
 	if err := initDatabase(db); err != nil {
-		log.Fatalf("初始化数据库失败: %v", err)
+		log.Errorf("初始化数据库失败: %v", err)
 	}
 
 	// 初始化服务
@@ -44,6 +77,12 @@ func main() {
 	// 创建SSE服务和管理器（需先于处理器创建）
 	sseService := sse.NewService(db)
 	sseManager := sse.NewManager(db, sseService)
+	// 适当减少 worker 数量，避免过多并发写入
+	workerCount := runtime.NumCPU()
+	if workerCount > 4 {
+		workerCount = 4 // 最多4个worker
+	}
+	sseManager.StartWorkers(workerCount)
 
 	// 初始化处理器
 	authHandler := api.NewAuthHandler(authService)
@@ -81,11 +120,15 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})
 
-	// 创建HTTP服务器
-	server := &http.Server{
-		Addr:    ":3000",
-		Handler: rootRouter,
+	// 读取端口：命令行 > 环境变量 > 默认值
+	port := "3000"
+	if env := os.Getenv("PORT"); env != "" {
+		port = env
 	}
+	if *portFlag != "" {
+		port = *portFlag
+	}
+	addr := fmt.Sprintf(":%s", port)
 
 	// 创建上下文和取消函数
 	ctx, cancel := context.WithCancel(context.Background())
@@ -93,19 +136,25 @@ func main() {
 
 	// 系统初始化（首次启动输出初始用户名和密码）
 	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
-		log.Fatalf("系统初始化失败: %v", err)
+		log.Errorf("系统初始化失败: %v", err)
 	}
 
 	// 启动SSE系统
 	if err := sseManager.InitializeSystem(); err != nil {
-		log.Printf("初始化SSE系统失败: %v", err)
+		log.Errorf("初始化SSE系统失败: %v", err)
+	}
+
+	// 创建HTTP服务器
+	server := &http.Server{
+		Addr:    addr,
+		Handler: rootRouter,
 	}
 
 	// 启动HTTP服务器
 	go func() {
-		log.Printf("服务器启动在 http://localhost:3000")
+		log.Infof("NodePassDash[%s]启动在 http://localhost:%s", Version, port)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("HTTP服务器错误: %v", err)
+			log.Errorf("HTTP服务器错误: %v", err)
 		}
 	}()
 
@@ -122,7 +171,7 @@ func main() {
 	<-quit
 
 	// 关闭服务
-	log.Println("正在关闭服务器...")
+	log.Infof("正在关闭服务器...")
 
 	// 关闭SSE系统
 	sseManager.Close()
@@ -133,10 +182,10 @@ func main() {
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("服务器关闭错误: %v", err)
+		log.Errorf("服务器关闭错误: %v", err)
 	}
 
-	log.Println("服务器已关闭")
+	log.Infof("服务器已关闭")
 }
 
 // initDatabase 创建必须的表结构（如不存在）
@@ -177,9 +226,36 @@ func initDatabase(db *sql.DB) error {
 		tcpTx INTEGER DEFAULT 0,
 		udpRx INTEGER DEFAULT 0,
 		udpTx INTEGER DEFAULT 0,
+		min INTEGER,
+		max INTEGER,
 		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		lastEventTime DATETIME,
+		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
+	);`
+
+	createTunnelRecycleTable := `
+	CREATE TABLE IF NOT EXISTS "TunnelRecycle" (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		endpointId INTEGER NOT NULL,
+		mode TEXT NOT NULL,
+		tunnelAddress TEXT NOT NULL,
+		tunnelPort TEXT NOT NULL,
+		targetAddress TEXT NOT NULL,
+		targetPort TEXT NOT NULL,
+		tlsMode TEXT NOT NULL,
+		certPath TEXT,
+		keyPath TEXT,
+		logLevel TEXT NOT NULL DEFAULT 'info',
+		commandLine TEXT NOT NULL,
+		instanceId TEXT,
+		tcpRx INTEGER DEFAULT 0,
+		tcpTx INTEGER DEFAULT 0,
+		udpRx INTEGER DEFAULT 0,
+		udpTx INTEGER DEFAULT 0,
+		min INTEGER,
+		max INTEGER,
 		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
 	);`
 
@@ -241,6 +317,9 @@ func initDatabase(db *sql.DB) error {
 	if _, err := db.Exec(createTunnelTable); err != nil {
 		return err
 	}
+	if _, err := db.Exec(createTunnelRecycleTable); err != nil {
+		return err
+	}
 	if _, err := db.Exec(createEndpointSSE); err != nil {
 		return err
 	}
@@ -254,5 +333,42 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 
+	// ---- 旧库兼容：为 Tunnel 表添加 min / max 列 ----
+	if err := ensureColumn(db, "Tunnel", "min", "INTEGER"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Tunnel", "max", "INTEGER"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ensureColumn 若列不存在则 ALTER TABLE 添加，幂等安全
+func ensureColumn(db *sql.DB, table, column, typ string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var exists bool
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull int
+		var dfltValue interface{}
+		var pk int
+		_ = rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk)
+		if name == column {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		_, err := db.Exec(`ALTER TABLE "` + table + `" ADD COLUMN ` + column + ` ` + typ)
+		return err
+	}
 	return nil
 }

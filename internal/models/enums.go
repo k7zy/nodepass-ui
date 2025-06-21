@@ -71,4 +71,4 @@ const (
 	OperationActionRestarted OperationAction = "restarted"
 	OperationActionRenamed   OperationAction = "renamed"
 	OperationActionError     OperationAction = "error"
-) 
+)

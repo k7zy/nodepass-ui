@@ -28,49 +28,7 @@ import { useTunnelSSE } from '@/lib/hooks/use-sse';
 import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useSearchParams } from 'next/navigation';
-
-// 添加ANSI颜色处理函数
-const processAnsiColors = (text: string) => {
-  try {
-    // 移除时间戳前缀（如果存在）
-    text = text.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s/, '');
-    
-    // 只移除 \u001B 字符，保留后面的颜色代码
-    text = text.replace(/\u001B/g, ''); // 只移除 ESC 字符，保留 [32m 等
-    
-    // 将 ANSI 颜色代码转换为 HTML span 标签
-    const colorMap = new Map([
-      [/\[32m/g, '<span class="text-green-400">'],   // INFO - 绿色
-      [/\[31m/g, '<span class="text-red-400">'],     // ERROR - 红色
-      [/\[33m/g, '<span class="text-yellow-400">'],  // WARN - 黄色
-      [/\[34m/g, '<span class="text-blue-400">'],    // DEBUG - 蓝色
-      [/\[35m/g, '<span class="text-purple-400">'],  // 紫色
-      [/\[36m/g, '<span class="text-cyan-400">'],    // 青色
-      [/\[37m/g, '<span class="text-gray-400">'],    // 灰色
-      [/\[0m/g, '</span>']                           // 结束标签
-    ]);
-
-    // 替换颜色代码
-    for (const [pattern, replacement] of colorMap) {
-      text = text.replace(pattern, replacement);
-    }
-
-    // 确保所有标签都正确闭合
-    const openTags = (text.match(/<span/g) || []).length;
-    const closeTags = (text.match(/<\/span>/g) || []).length;
-    
-    // 如果开始标签多于结束标签，添加结束标签
-    if (openTags > closeTags) {
-      const missingCloseTags = openTags - closeTags;
-      text += '</span>'.repeat(missingCloseTags);
-    }
-
-    return text;
-  } catch (error) {
-    console.error('处理ANSI颜色失败:', error);
-    return text;
-  }
-};
+import { processAnsiColors } from "@/lib/utils/ansi";
 
 interface TunnelInfo {
   id: string;
@@ -89,6 +47,8 @@ interface TunnelInfo {
     tls: boolean;
     logLevel: string;
     tlsMode?: string;  // 添加 tlsMode 字段
+    min?: number | null;
+    max?: number | null;
   };
   traffic: {
     tcpRx: number;
@@ -399,14 +359,19 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         
         // 检查日志数据格式
         if (data.logs.length > 0 && typeof data.logs[0] === 'object') {
-          // 新格式：对象数组，包含时间信息
-          setLogs(data.logs);
+          // 新格式：对象数组，包含时间信息 - 需要处理ANSI颜色
+          const processedLogs = data.logs.map((log: any) => ({
+            ...log,
+            message: processAnsiColors(log.message), // 应用ANSI颜色处理
+            isHtml: true // 启用HTML渲染
+          }));
+          setLogs(processedLogs);
         } else {
           // 旧格式：字符串数组，需要转换
           const formattedLogs = data.logs.map((message: string, index: number) => ({
             id: index + 1,
-            message,
-            isHtml: true,
+            message: processAnsiColors(message), // 应用ANSI颜色处理
+            isHtml: true, // 启用HTML渲染
             traffic: {
               tcpRx: 0,
               tcpTx: 0,
@@ -467,56 +432,71 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   });
   
   // 使用实例SSE监听更新 - 使用统一的SSE hook
+  console.log('🚀 [前端SSE] 准备订阅SSE:', {
+    instanceId: tunnelInfo?.instanceId,
+    isEmpty: !tunnelInfo?.instanceId,
+    tunnelInfo: tunnelInfo
+  });
+  
   useTunnelSSE(tunnelInfo?.instanceId || '', {
     onMessage: (data) => {
-      console.log('[前端SSE] 收到实例SSE消息', data);
+      console.log('🔥 [前端SSE] 收到消息！', data);
+      console.log('🔥 [前端SSE] 消息类型:', data.eventType);
+      console.log('🔥 [前端SSE] 是否有logs:', !!data.logs);
       
-      // 处理log类型的事件
-      if (data.type === 'log' && data.logs) {
-        // 使用递增计数器确保唯一ID
-        logCounterRef.current += 1;
-        const newLog = {
-          id: logCounterRef.current,
-          message: processAnsiColors(data.logs), // 使用ANSI颜色处理函数
-          isHtml: true, // 启用HTML格式渲染
-          traffic: {
-            tcpRx: data.instance?.tcprx || 0,
-            tcpTx: data.instance?.tcptx || 0,
-            udpRx: data.instance?.udprx || 0,
-            udpTx: data.instance?.udptx || 0
-          },
-          timestamp: new Date(data.time || Date.now())
-        };
-        
-        // 将新日志追加到控制台
-        setLogs(prev => [newLog, ...prev].slice(0, 100));
-        
-        // 滚动到底部显示最新日志
-        setTimeout(scrollToBottom, 50);
-        
-        console.log('[前端SSE] 处理log事件', {
-          原始日志内容: data.logs,
-          处理后日志内容: newLog.message,
-          流量数据: newLog.traffic,
-          日志ID: newLog.id
-        });
-      }
-      // 处理其他类型的事件 - 延迟更新页面数据
-      else if (data.type && data.type !== 'log') {
-        console.log('[前端SSE] 收到非log事件，准备延迟更新页面数据', {
-          事件类型: data.type,
-          事件数据: data
-        });
-        
-        // 调用延迟更新函数
-        scheduleDataUpdate();
+      try {
+        // 处理log类型的事件
+        if (data.eventType === 'log' && data.logs) {
+          console.log('🎯 [前端SSE] 开始处理log事件');
+          
+          // 使用递增计数器确保唯一ID
+          logCounterRef.current += 1;
+          const newLog = {
+            id: logCounterRef.current,
+            message: processAnsiColors(data.logs), // 恢复ANSI颜色处理
+            isHtml: true, // 启用HTML渲染
+            traffic: {
+              tcpRx: data.instance?.tcprx || 0,
+              tcpTx: data.instance?.tcptx || 0,
+              udpRx: data.instance?.udprx || 0,
+              udpTx: data.instance?.udptx || 0
+            },
+            timestamp: new Date(data.eventTime || Date.now())
+          };
+          
+          console.log('✅ [前端SSE] 新日志对象创建完成:', newLog);
+          
+          // 将新日志追加到控制台
+          setLogs(prev => {
+            const newLogs = [newLog, ...prev].slice(0, 100);
+            console.log('✅ [前端SSE] 日志状态更新:', {
+              原数量: prev.length,
+              新数量: newLogs.length,
+              新日志ID: newLog.id
+            });
+            return newLogs;
+          });
+          
+          // 滚动到底部显示最新日志
+          setTimeout(scrollToBottom, 50);
+          
+          console.log('✅ [前端SSE] log事件处理完成');
+        } else {
+          console.log('❌ [前端SSE] 事件不匹配log条件:', {
+            eventType: data.eventType,
+            hasLogs: !!data.logs,
+            rawData: data
+          });
+        }
+      } catch (error) {
+        console.error('💥 [前端SSE] 处理消息时发生错误:', error);
       }
     },
     onError: (error) => {
-      console.error('[前端SSE] 实例SSE连接错误', error);
+      console.error('💥 [前端SSE] SSE连接错误:', error);
     },
     onConnected: () => {
-      console.log('[前端SSE] 实例SSE连接成功');
+      console.log('✅ [前端SSE] SSE连接成功!');
     }
   });
 
@@ -931,7 +911,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               >
                 {loading ? (
                   <div className="animate-pulse">
-                    <span className="text-gray-500">[{new Date().toLocaleString()}]</span> 
                     <span className="text-blue-400 ml-2">INFO:</span> 
                     <span className="text-gray-300 ml-1">加载日志中...</span>
                   </div>
@@ -944,7 +923,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                     {/* 反转数组顺序，让最新的日志显示在底部 */}
                     {logs.slice().reverse().map((log) => (
                       <div key={log.id.toString()} className="text-gray-300 leading-5">
-                        <span className="text-gray-500 text-xs">[{new Date(log.timestamp).toLocaleString()}]</span>
                         {log.isHtml ? (
                           <span 
                             className="ml-2" 
@@ -1010,6 +988,20 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                         </div>
                       } 
                     />
+
+                    {/* 仅客户端模式下显示 min/max */}
+                    {tunnelInfo.type === '客户端' && (
+                      <>
+                        <CellValue
+                          label="最小值 (min)"
+                          value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : ' - '}
+                        />
+                        <CellValue
+                          label="最大值 (max)"
+                          value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : ' - '}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

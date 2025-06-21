@@ -35,4 +35,4 @@ const (
 	ConfigKeyIsInitialized = "system_initialized"
 	ConfigKeyAdminUsername = "admin_username"
 	ConfigKeyAdminPassword = "admin_password_hash"
-) 
+)

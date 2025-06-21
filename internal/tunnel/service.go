@@ -1,10 +1,11 @@
 package tunnel
 
 import (
+	log "NodePassDash/internal/log"
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,125 @@ type OperationLog struct {
 	CreatedAt  time.Time      `json:"createdAt"`
 }
 
+// parsedURL 表示解析后的隧道 URL 各字段（与 SSE 模块保持一致）
+type parsedURL struct {
+	TunnelAddress string
+	TunnelPort    string
+	TargetAddress string
+	TargetPort    string
+	TLSMode       string
+	LogLevel      string
+	CertPath      string
+	KeyPath       string
+	Min           string
+	Max           string
+}
+
+// parseInstanceURL 解析隧道实例 URL（简化实现，与 SSE 保持一致）
+func parseInstanceURL(raw, mode string) parsedURL {
+	// 默认值
+	res := parsedURL{
+		TLSMode:  "inherit",
+		LogLevel: "inherit",
+		CertPath: "",
+		KeyPath:  "",
+	}
+
+	if raw == "" {
+		return res
+	}
+
+	// 去除协议部分 protocol://
+	if idx := strings.Index(raw, "://"); idx != -1 {
+		raw = raw[idx+3:]
+	}
+
+	// 分离查询参数
+	var queryPart string
+	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
+		queryPart = raw[qIdx+1:]
+		raw = raw[:qIdx]
+	}
+
+	// 分离路径
+	var hostPart, pathPart string
+	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
+		hostPart = raw[:pIdx]
+		pathPart = raw[pIdx+1:]
+	} else {
+		hostPart = raw
+	}
+
+	// 解析 hostPart -> tunnelAddress:tunnelPort
+	if hostPart != "" {
+		if strings.Contains(hostPart, ":") {
+			parts := strings.SplitN(hostPart, ":", 2)
+			res.TunnelAddress = parts[0]
+			res.TunnelPort = parts[1]
+		} else {
+			if _, err := strconv.Atoi(hostPart); err == nil {
+				res.TunnelPort = hostPart
+			} else {
+				res.TunnelAddress = hostPart
+			}
+		}
+	}
+
+	// 解析 pathPart -> targetAddress:targetPort
+	if pathPart != "" {
+		if strings.Contains(pathPart, ":") {
+			parts := strings.SplitN(pathPart, ":", 2)
+			res.TargetAddress = parts[0]
+			res.TargetPort = parts[1]
+		} else {
+			if _, err := strconv.Atoi(pathPart); err == nil {
+				res.TargetPort = pathPart
+			} else {
+				res.TargetAddress = pathPart
+			}
+		}
+	}
+
+	// 解析查询参数
+	if queryPart != "" {
+		for _, kv := range strings.Split(queryPart, "&") {
+			if kv == "" {
+				continue
+			}
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := parts[0], parts[1]
+			switch key {
+			case "tls":
+				if mode == "server" {
+					switch val {
+					case "0":
+						res.TLSMode = "mode0"
+					case "1":
+						res.TLSMode = "mode1"
+					case "2":
+						res.TLSMode = "mode2"
+					}
+				}
+			case "log":
+				res.LogLevel = strings.ToLower(val)
+			case "crt":
+				res.CertPath = val
+			case "key":
+				res.KeyPath = val
+			case "min":
+				res.Min = val
+			case "max":
+				res.Max = val
+			}
+		}
+	}
+
+	return res
+}
+
 // NewService 创建隧道服务实例
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
@@ -34,13 +154,13 @@ func NewService(db *sql.DB) *Service {
 
 // GetTunnels 获取所有隧道列表
 func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
-	slog.Debug("GetTunnels called")
+	// log.Debugf("[API] 获取所有隧道列表")
 	query := `
 		SELECT 
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,
 			t.tunnelAddress, t.tunnelPort, t.targetAddress, t.targetPort,
 			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
-			t.status, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+			t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 			t.createdAt, t.updatedAt,
 			e.name as endpointName
 		FROM "Tunnel" t
@@ -61,11 +181,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var instanceID sql.NullString
 		var certPathNS, keyPathNS sql.NullString
 		var endpointNameNS sql.NullString
+		var minNS, maxNS sql.NullInt64
 		err := rows.Scan(
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
 			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
-			&statusStr, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
+			&statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
 		)
@@ -83,6 +204,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		}
 		if endpointNameNS.Valid {
 			t.EndpointName = endpointNameNS.String
+		}
+		if minNS.Valid {
+			t.Min = int(minNS.Int64)
+		}
+		if maxNS.Valid {
+			t.Max = int(maxNS.Int64)
 		}
 
 		t.Mode = TunnelMode(modeStr)
@@ -132,7 +259,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 
 // CreateTunnel 创建新隧道
 func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
-	slog.Info("CreateTunnel", "name", req.Name, "endpointId", req.EndpointID, "mode", req.Mode)
+	log.Infof("[API] 创建隧道: %v", req.Name)
 	// 检查端点是否存在
 	var endpointURL, endpointAPIPath, endpointAPIKey string
 	err := s.db.QueryRow(
@@ -192,6 +319,15 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		}
 	}
 
+	if req.Mode == "client" {
+		if req.Min > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
+		}
+		if req.Max > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
+		}
+	}
+
 	if len(queryParams) > 0 {
 		commandLine += "?" + strings.Join(queryParams, "&")
 	}
@@ -218,8 +354,9 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				instanceId, name, endpointId, mode,
 				tunnelAddress, tunnelPort, targetAddress, targetPort,
 				tlsMode, certPath, keyPath, logLevel, commandLine,
+				min, max,
 				status, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			instanceID,
 			req.Name,
@@ -234,7 +371,19 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			req.KeyPath,
 			req.LogLevel,
 			commandLine,
-			remoteStatus,
+			func() interface{} {
+				if req.Min > 0 {
+					return req.Min
+				}
+				return nil
+			}(),
+			func() interface{} {
+				if req.Max > 0 {
+					return req.Max
+				}
+				return nil
+			}(),
+			"running",
 			now,
 			now,
 		)
@@ -292,12 +441,14 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		Status:        TunnelStatus(remoteStatus),
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		Min:           req.Min,
+		Max:           req.Max,
 	}, nil
 }
 
 // DeleteTunnel 删除隧道
 func (s *Service) DeleteTunnel(instanceID string) error {
-	slog.Info("DeleteTunnel", "instanceId", instanceID)
+	log.Infof("[API] 删除隧道: %v", instanceID)
 	// 获取隧道信息
 	var tunnel struct {
 		ID         int64
@@ -386,7 +537,7 @@ func (s *Service) UpdateTunnelStatus(instanceID string, status TunnelStatus) err
 
 // ControlTunnel 控制隧道状态（启动/停止/重启）
 func (s *Service) ControlTunnel(req TunnelActionRequest) error {
-	slog.Info("ControlTunnel", "instanceId", req.InstanceID, "action", req.Action)
+	log.Infof("[API] 控制隧道状态: %v => %v", req.InstanceID, req.Action)
 	// 获取隧道和端点信息
 	var tunnel struct {
 		ID         int64
@@ -418,26 +569,42 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 
 	// 调用 NodePass API
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
-	_, err = npClient.ControlInstance(req.InstanceID, req.Action)
-	if err != nil {
+	if _, err = npClient.ControlInstance(req.InstanceID, req.Action); err != nil {
 		return err
 	}
 
-	// 更新隧道状态
-	// @todo restart 会返回stopped
-	// err = s.UpdateTunnelStatus(req.InstanceID, TunnelStatus(remoteStatus))
-	// if err != nil {
-	// 	return err
-	// }
+	// 目标状态映射
+	var targetStatus TunnelStatus
+	switch req.Action {
+	case "start", "restart":
+		targetStatus = StatusRunning
+	case "stop":
+		targetStatus = StatusStopped
+	default:
+		targetStatus = "" // 不会发生，已验证
+	}
 
-	// todo 这里的更新下一版改成监听数据库变化到目标状态再返回
+	// 轮询数据库等待状态变更 (最多8秒)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var curStatus string
+		if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
+			if TunnelStatus(curStatus) == targetStatus {
+				break // 成功
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// 再次检查，若仍未到目标状态则手动更新
+	var finalStatus string
+	_ = s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&finalStatus)
+	if TunnelStatus(finalStatus) != targetStatus {
+		_ = s.UpdateTunnelStatus(req.InstanceID, targetStatus)
+	}
 
 	// 记录操作日志
-	_, err = s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
+	_, err = s.db.Exec(`INSERT INTO "TunnelOperationLog" (tunnelId, tunnelName, action, status, message) VALUES (?, ?, ?, ?, ?)`,
 		tunnel.ID,
 		tunnel.Name,
 		req.Action,
@@ -483,7 +650,7 @@ func formatTrafficBytes(bytes int64) string {
 
 // UpdateTunnel 更新隧道配置
 func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
-	slog.Info("UpdateTunnel", "id", req.ID)
+	log.Infof("[API] 更新隧道: %v", req.ID)
 	// 检查隧道是否存在
 	var exists bool
 	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Tunnel" WHERE id = ?)`, req.ID).Scan(&exists)
@@ -674,8 +841,8 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 // DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
 // 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
 // timeout 为等待的最长时长
-func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration) error {
-	slog.Info("DeleteTunnelAndWait", "instanceId", instanceID, "timeout", timeout)
+func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, recycle bool) error {
+	log.Infof("[API] 删除隧道: %v", instanceID)
 	// 获取隧道及端点信息（与 DeleteTunnel 中相同，但不删除本地记录）
 	var tunnel struct {
 		ID         int64
@@ -702,6 +869,16 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration) 
 		return err
 	}
 
+	// 在删除之前，如选择移入回收站，则先复制记录
+	if recycle {
+		_, _ = s.db.Exec(`INSERT INTO "TunnelRecycle" (
+			name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
+			certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+		) SELECT name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
+			certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+		FROM "Tunnel" WHERE instanceId = ?`, instanceID)
+	}
+
 	// 调用 NodePass API 删除实例
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
 	if err := npClient.DeleteInstance(instanceID); err != nil {
@@ -721,12 +898,46 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration) 
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return errors.New("等待删除超时，记录仍存在")
+	// 超时仍未删除，执行本地强制删除并刷新计数
+	log.Warnf("[API] 等待删除超时，执行本地删除: %v", instanceID)
+
+	// 删除隧道记录
+	result, err := s.db.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, tunnel.ID)
+	if err != nil {
+		return err
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return errors.New("隧道删除失败")
+	}
+
+	if !recycle {
+		_, _ = s.db.Exec(`DELETE FROM "EndpointSSE" WHERE instanceId = ?`, instanceID)
+	}
+
+	// 更新端点隧道计数
+	_, _ = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+	) WHERE id = ?`, tunnel.EndpointID, tunnel.EndpointID)
+
+	// 写入操作日志
+	_, _ = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
+		tunnelId, tunnelName, action, status, message
+	) VALUES (?, ?, ?, ?, ?)`,
+		tunnel.ID,
+		tunnel.Name,
+		"delete",
+		"success",
+		"远端删除超时，本地强制删除",
+	)
+
+	return nil
 }
 
 // RenameTunnel 仅修改隧道名称，不调用远端 API
 func (s *Service) RenameTunnel(id int64, newName string) error {
-	slog.Info("RenameTunnel", "id", id, "newName", newName)
+	log.Infof("[API] 重命名隧道: %v", newName)
 
 	// 检查名称重复
 	var exists bool
@@ -756,4 +967,41 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 // DB 返回底层 *sql.DB 指针，供需要直接执行查询的调用者使用
 func (s *Service) DB() *sql.DB {
 	return s.db
+}
+
+// QuickCreateTunnel 根据完整 URL 快速创建隧道实例 (server://addr:port/target:port?params)
+func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string) error {
+	// 粗解析协议
+	idx := strings.Index(rawURL, "://")
+	if idx == -1 {
+		return errors.New("无效的隧道URL")
+	}
+	mode := rawURL[:idx]
+	cfg := parseInstanceURL(rawURL, mode) // 复用 sse 里的同名私有函数，此处复制实现
+
+	// 端口转换
+	tp, _ := strconv.Atoi(cfg.TunnelPort)
+	sp, _ := strconv.Atoi(cfg.TargetPort)
+
+	finalName := name
+	if strings.TrimSpace(finalName) == "" {
+		finalName = fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix())
+	}
+	req := CreateTunnelRequest{
+		Name:          finalName,
+		EndpointID:    endpointID,
+		Mode:          mode,
+		TunnelAddress: cfg.TunnelAddress,
+		TunnelPort:    tp,
+		TargetAddress: cfg.TargetAddress,
+		TargetPort:    sp,
+		TLSMode:       TLSMode(cfg.TLSMode),
+		CertPath:      cfg.CertPath,
+		KeyPath:       cfg.KeyPath,
+		LogLevel:      LogLevel(cfg.LogLevel),
+		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
+		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
+	}
+	_, err := s.CreateTunnel(req)
+	return err
 }

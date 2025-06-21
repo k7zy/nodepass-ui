@@ -29,37 +29,37 @@ const (
 
 // SSEEvent SSE事件数据
 type SSEEvent struct {
-	ID           int64         `json:"id"`
-	EventType    EventType     `json:"eventType"`
-	PushType     string        `json:"pushType"`
-	EventTime    time.Time     `json:"eventTime"`
-	EndpointID   int64         `json:"endpointId"`
-	InstanceID   string        `json:"instanceId"`
-	InstanceType string        `json:"instanceType,omitempty"`
-	Status       string        `json:"status,omitempty"`
-	URL          string        `json:"url,omitempty"`
-	TcpRx        int64         `json:"tcpRx,omitempty"`
-	TcpTx        int64         `json:"tcpTx,omitempty"`
-	UdpRx        int64         `json:"udpRx,omitempty"`
-	UdpTx        int64         `json:"udpTx,omitempty"`
-	Logs         string        `json:"logs,omitempty"`
-	CreatedAt    time.Time     `json:"createdAt"`
+	ID           int64     `json:"id"`
+	EventType    EventType `json:"eventType"`
+	PushType     string    `json:"pushType"`
+	EventTime    time.Time `json:"eventTime"`
+	EndpointID   int64     `json:"endpointId"`
+	InstanceID   string    `json:"instanceId"`
+	InstanceType string    `json:"instanceType,omitempty"`
+	Status       string    `json:"status,omitempty"`
+	URL          string    `json:"url,omitempty"`
+	TcpRx        int64     `json:"tcpRx,omitempty"`
+	TcpTx        int64     `json:"tcpTx,omitempty"`
+	UdpRx        int64     `json:"udpRx,omitempty"`
+	UdpTx        int64     `json:"udpTx,omitempty"`
+	Logs         string    `json:"logs,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 // EndpointConnection 端点连接状态
 type EndpointConnection struct {
-	EndpointID int64
-	URL        string
-	APIPath    string
-	APIKey     string
-	Client     *http.Client
-	Cancel     context.CancelFunc
-	IsHealthy  bool
-	RetryCount int
-	MaxRetries int
-	LastError  string
-	LastEventTime time.Time
-	ReconnectTimer *time.Timer
+	EndpointID           int64
+	URL                  string
+	APIPath              string
+	APIKey               string
+	Client               *http.Client
+	Cancel               context.CancelFunc
+	IsHealthy            bool
+	RetryCount           int
+	MaxRetries           int
+	LastError            string
+	LastEventTime        time.Time
+	ReconnectTimer       *time.Timer
 	ManuallyDisconnected bool
 }
 
@@ -75,4 +75,4 @@ type Client struct {
 	ID     string
 	Writer http.ResponseWriter
 	Events chan Event
-} 
+}

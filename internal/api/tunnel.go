@@ -1,9 +1,9 @@
 package api
 
 import (
+	log "NodePassDash/internal/log"
 	"database/sql"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -70,6 +70,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		CertPath      string          `json:"certPath"`
 		KeyPath       string          `json:"keyPath"`
 		LogLevel      string          `json:"logLevel"`
+		Min           json.RawMessage `json:"min"`
+		Max           json.RawMessage `json:"max"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
@@ -81,8 +83,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 将端口解析为 int
-	parsePort := func(j json.RawMessage) (int, error) {
+	// 解析整数工具（针对 min/max 字段，允许字符串或数字）
+	parseIntField := func(j json.RawMessage) (int, error) {
 		if j == nil {
 			return 0, nil
 		}
@@ -97,13 +99,24 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return 0, strconv.ErrSyntax
 	}
 
-	tunnelPort, err1 := parsePort(raw.TunnelPort)
-	targetPort, err2 := parsePort(raw.TargetPort)
+	tunnelPort, err1 := parseIntField(raw.TunnelPort)
+	targetPort, err2 := parseIntField(raw.TargetPort)
 	if err1 != nil || err2 != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
 			Error:   "端口号格式错误，应为数字",
+		})
+		return
+	}
+
+	minVal, err3 := parseIntField(raw.Min)
+	maxVal, err4 := parseIntField(raw.Max)
+	if err3 != nil || err4 != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "min/max 参数格式错误，应为数字",
 		})
 		return
 	}
@@ -120,9 +133,11 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		CertPath:      raw.CertPath,
 		KeyPath:       raw.KeyPath,
 		LogLevel:      tunnel.LogLevel(raw.LogLevel),
+		Min:           minVal,
+		Max:           maxVal,
 	}
 
-	slog.Info("创建隧道请求", "name", req.Name, "endpointId", req.EndpointID, "mode", req.Mode)
+	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
 
 	newTunnel, err := h.tunnelService.CreateTunnel(req)
 	if err != nil {
@@ -150,8 +165,17 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 
 	var req struct {
 		InstanceID string `json:"instanceId"`
+		Recycle    bool   `json:"recycle"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req) // 即使失败也无妨，后续再判断
+
+	// 兼容前端使用 query 参数 recycle=1
+	if !req.Recycle {
+		q := r.URL.Query().Get("recycle")
+		if q == "1" || strings.ToLower(q) == "true" {
+			req.Recycle = true
+		}
+	}
 
 	// 如果未提供 instanceId ，则尝试从路径参数中解析数据库 id
 	if req.InstanceID == "" {
@@ -181,7 +205,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 10*time.Second); err != nil {
+	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 3*time.Second, req.Recycle); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
@@ -280,8 +304,24 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req tunnel.UpdateTunnelRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// 尝试解析为创建/替换请求体（与创建接口保持一致）
+	var rawCreate struct {
+		Name          string          `json:"name"`
+		EndpointID    int64           `json:"endpointId"`
+		Mode          string          `json:"mode"`
+		TunnelAddress string          `json:"tunnelAddress"`
+		TunnelPort    json.RawMessage `json:"tunnelPort"`
+		TargetAddress string          `json:"targetAddress"`
+		TargetPort    json.RawMessage `json:"targetPort"`
+		TLSMode       string          `json:"tlsMode"`
+		CertPath      string          `json:"certPath"`
+		KeyPath       string          `json:"keyPath"`
+		LogLevel      string          `json:"logLevel"`
+		Min           json.RawMessage `json:"min"`
+		Max           json.RawMessage `json:"max"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&rawCreate); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
@@ -290,21 +330,76 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req.ID = tunnelID
+	// 如果请求体包含 EndpointID 和 Mode，则认定为"替换"逻辑，否则执行原 Update 逻辑
+	if rawCreate.EndpointID != 0 && rawCreate.Mode != "" {
+		// 1. 获取旧 instanceId
+		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+			return
+		}
 
-	if err := h.tunnelService.UpdateTunnel(req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: false,
-			Error:   err.Error(),
-		})
+		// 2. 删除旧实例（回收站=true）
+		if err := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，遭遇无法删除旧实例: " + err.Error()})
+			return
+		}
+		log.Infof("[Master-%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
+
+		// 工具函数解析 int 字段
+		parseInt := func(j json.RawMessage) (int, error) {
+			if j == nil {
+				return 0, nil
+			}
+			var i int
+			if err := json.Unmarshal(j, &i); err == nil {
+				return i, nil
+			}
+			var s string
+			if err := json.Unmarshal(j, &s); err == nil {
+				return strconv.Atoi(s)
+			}
+			return 0, strconv.ErrSyntax
+		}
+
+		tunnelPort, _ := parseInt(rawCreate.TunnelPort)
+		targetPort, _ := parseInt(rawCreate.TargetPort)
+		minVal, _ := parseInt(rawCreate.Min)
+		maxVal, _ := parseInt(rawCreate.Max)
+
+		createReq := tunnel.CreateTunnelRequest{
+			Name:          rawCreate.Name,
+			EndpointID:    rawCreate.EndpointID,
+			Mode:          rawCreate.Mode,
+			TunnelAddress: rawCreate.TunnelAddress,
+			TunnelPort:    tunnelPort,
+			TargetAddress: rawCreate.TargetAddress,
+			TargetPort:    targetPort,
+			TLSMode:       tunnel.TLSMode(rawCreate.TLSMode),
+			CertPath:      rawCreate.CertPath,
+			KeyPath:       rawCreate.KeyPath,
+			LogLevel:      tunnel.LogLevel(rawCreate.LogLevel),
+			Min:           minVal,
+			Max:           maxVal,
+		}
+
+		newTunnel, err := h.tunnelService.CreateTunnel(createReq)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
+			return
+		}
+		log.Infof("[Master-%v] 编辑实例=>创建新实例: %v", rawCreate.EndpointID, newTunnel.InstanceID)
+
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功", Tunnel: newTunnel})
 		return
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-		Success: true,
-		Message: "隧道更新成功",
-	})
+	// -------- 原局部更新逻辑 ----------
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "不支持的更新请求"})
 }
 
 // HandleGetTunnelLogs GET /api/tunnel-logs
@@ -329,8 +424,8 @@ func (h *TunnelHandler) HandleGetTunnelLogs(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 格式化为前端需要的字段
-	var resp []map[string]interface{}
+	// 格式化为前端需要的字段；若无数据也返回空数组而非 null
+	resp := make([]map[string]interface{}, 0)
 	for _, l := range logs {
 		statusType := "warning"
 		if l.Status == "success" {
@@ -508,12 +603,15 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		TCPTx         int64
 		UDPRx         int64
 		UDPTx         int64
+		Min           sql.NullInt64
+		Max           sql.NullInt64
 	}
 
 	query := `SELECT t.id, t.instanceId, t.name, t.mode, t.status, t.endpointId,
 		   e.name, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
 		   t.tunnelAddress, t.targetAddress, t.commandLine,
-		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx
+		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+		   t.min, t.max
 		   FROM "Tunnel" t
 		   LEFT JOIN "Endpoint" e ON t.endpointId = e.id
 		   WHERE t.id = ?`
@@ -536,6 +634,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.TCPTx,
 		&tunnelRecord.UDPRx,
 		&tunnelRecord.UDPTx,
+		&tunnelRecord.Min,
+		&tunnelRecord.Max,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
@@ -647,6 +747,18 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 				"tls":        tunnelRecord.TLSMode != "mode0",
 				"logLevel":   tunnelRecord.LogLevel,
 				"tlsMode":    tunnelRecord.TLSMode,
+				"min": func() interface{} {
+					if tunnelRecord.Min.Valid {
+						return tunnelRecord.Min.Int64
+					}
+					return nil
+				}(),
+				"max": func() interface{} {
+					if tunnelRecord.Max.Valid {
+						return tunnelRecord.Max.Int64
+					}
+					return nil
+				}(),
 			},
 			"traffic": map[string]int64{
 				"tcpRx": tunnelRecord.TCPRx,
@@ -793,4 +905,49 @@ func ptrString(ns sql.NullString) string {
 		return ns.String
 	}
 	return ""
+}
+
+// HandleQuickCreateTunnel 根据 URL 快速创建隧道
+func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		EndpointID int64  `json:"endpointId"`
+		URL        string `json:"url"`
+		Name       string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	if req.EndpointID == 0 || req.URL == "" || strings.TrimSpace(req.Name) == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "endpointId、url、name 均不能为空",
+		})
+		return
+	}
+
+	if err := h.tunnelService.QuickCreateTunnel(req.EndpointID, req.URL, req.Name); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		Success: true,
+		Message: "隧道创建成功",
+	})
 }
