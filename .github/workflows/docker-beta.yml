@@ -81,11 +81,9 @@ jobs:
             VERSION=${{ steps.get_version.outputs.version }}
           platforms: linux/amd64
           cache-from: |
-            type=gha,scope=beta-${{ github.workflow }}
-            type=registry,ref=ghcr.io/${{ steps.get_version.outputs.repo_name }}:beta-buildcache
+            type=gha,scope=beta-buildcache
           cache-to: |
-            type=gha,mode=max,scope=beta-${{ github.workflow }}
-            type=registry,ref=ghcr.io/${{ steps.get_version.outputs.repo_name }}:beta-buildcache,mode=max
+            type=gha,mode=max,scope=beta-buildcache
 
       - name: 📢 输出Beta版本信息
         run: |
