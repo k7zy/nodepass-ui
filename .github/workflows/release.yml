@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: [ 'v*.*.*' ]
+    branches: [ main ]
 
 
 jobs:
@@ -26,48 +27,57 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Verify Git State
+      - name: 📝 获取版本信息
+        id: get_version
+        run: |
+          # 从 package.json 获取版本号
+          VERSION=$(node -p "require('./package.json').version")
+          echo "📦 Package.json version: $VERSION"
+          
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # 标签触发
+            TAG_VERSION=${GITHUB_REF#refs/tags/v}
+            echo "🏷️ Tag version: $TAG_VERSION"
+            
+            # 检查版本一致性
+            if [ "$VERSION" != "$TAG_VERSION" ]; then
+              echo "⚠️ 警告: Tag版本($TAG_VERSION)与package.json版本($VERSION)不匹配"
+              echo "将使用package.json版本: $VERSION"
+            fi
+          else
+            # 分支推送触发
+            echo "🌿 Branch push, using package.json version: $VERSION"
+          fi
+          
+          # 创建一个临时标签用于 GoReleaser
+          TEMP_TAG="v${VERSION}"
+          if ! git tag -l | grep -q "^$TEMP_TAG$"; then
+            echo "📌 Creating temporary tag: $TEMP_TAG"
+            git tag "$TEMP_TAG"
+          else
+            echo "📌 Tag $TEMP_TAG already exists"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TEMP_TAG" >> $GITHUB_OUTPUT
+          echo "is_tag_trigger=${{ startsWith(github.ref, 'refs/tags/') }}" >> $GITHUB_OUTPUT
+
+      - name: 🔍 验证Git状态
         run: |
           echo "Current ref: $GITHUB_REF"
           echo "Event name: $GITHUB_EVENT_NAME"
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Commit SHA: $GITHUB_SHA"
-          echo ""
-          echo "Git status:"
-          git status
+          echo "Version: ${{ steps.get_version.outputs.version }}"
+          echo "Tag name: ${{ steps.get_version.outputs.tag_name }}"
+          echo "Is tag trigger: ${{ steps.get_version.outputs.is_tag_trigger }}"
           echo ""
           echo "Available tags (latest 10):"
           git tag -l --sort=-version:refname | head -10
           echo ""
           echo "Current commit tags:"
           git tag --points-at HEAD
-          echo ""
-          echo "Tag count:"
-          git tag | wc -l
-          echo ""
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-            echo "Tag triggered: $TAG_NAME"
-            if git tag -l | grep -q "^$TAG_NAME$"; then
-              echo "✅ Tag $TAG_NAME exists in local repository"
-            else
-              echo "❌ Tag $TAG_NAME NOT found in local repository"
-            fi
-          fi
           
-      - name: Check if running on tag
-        id: check_tag
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "is_tag=true" >> $GITHUB_OUTPUT
-            echo "Running on tag: ${GITHUB_REF#refs/tags/}"
-          else
-            echo "is_tag=false" >> $GITHUB_OUTPUT
-            echo "Not running on tag, will use snapshot mode"
-          fi
-          
-      - name: Run GoReleaser (Release)
-        if: steps.check_tag.outputs.is_tag == 'true'
+      - name: 🚀 运行 GoReleaser (正式发布)
+        if: steps.get_version.outputs.is_tag_trigger == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -76,12 +86,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Run GoReleaser (Snapshot)
-        if: steps.check_tag.outputs.is_tag == 'false'
+      - name: 🏗️ 运行 GoReleaser (开发构建)
+        if: steps.get_version.outputs.is_tag_trigger == 'false'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: 'latest'
-          args: build --snapshot --clean
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
