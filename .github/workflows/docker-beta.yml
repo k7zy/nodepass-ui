@@ -2,8 +2,8 @@ name: Docker CI (beta)
 
 on:
   push:
-#    branches:
-#      - "*-beta"
+    branches:
+      - "*-beta"  # 启用分支推送触发，但会检查是否有 tag
     tags:
       - "v*.*.*.beta*"
       - "v*.*.*-beta*"
@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整的 git 历史，包括 tags
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -34,12 +36,35 @@ jobs:
       - name: Extract version
         id: vars
         run: |
+          # 检查当前 commit 是否有 beta tag
+          CURRENT_TAG=$(git tag --points-at HEAD | grep -E '^v.*\.beta.*$' | head -1)
+          
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
+            # 直接由 tag 触发
+            RAW_VERSION=${GITHUB_REF#refs/tags/}
+          elif [[ -n "$CURRENT_TAG" ]]; then
+            # 分支推送但当前 commit 有 beta tag
+            RAW_VERSION=$CURRENT_TAG
           else
+            # 普通分支推送，使用 commit hash
             VERSION=${GITHUB_SHA::7}-beta
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            exit 0
           fi
+          
+          # 格式化版本号：v2.0.0.beta8 -> 2.0.0-beta8
+          if [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)\.beta([0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
+          elif [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-beta([0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
+          else
+            # 如果格式不匹配，直接去掉 v 前缀
+            VERSION=${RAW_VERSION#v}
+            VERSION=${VERSION/.beta/-beta}
+          fi
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "raw_version=$RAW_VERSION" >> $GITHUB_OUTPUT
 
       - name: Prepare metadata
         id: meta
@@ -62,7 +87,8 @@ jobs:
 
       - name: Output version info
         run: |
-          echo "🏷 Version: ${{ steps.vars.outputs.version }}"
+          echo "🏷 Raw Version: ${{ steps.vars.outputs.raw_version }}"
+          echo "🏷 Formatted Version: ${{ steps.vars.outputs.version }}"
           echo "📦 Image Tags:"
           echo "  ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}"
           echo "  ghcr.io/${{ steps.meta.outputs.repo }}:beta" 

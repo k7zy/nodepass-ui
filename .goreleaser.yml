@@ -1,0 +1,33 @@
+version: 2
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    main: ./cmd/server
+    binary: nodepassdash
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64  # armv8 (64位)
+      - arm    # armv6/armv7 (32位)
+    goarm:     # ARM 版本 (仅对 GOARCH=arm 有效)
+      - 6      # armv6 (树莓派 1)
+      - 7      # armv7 (树莓派 2/3/4 32位系统)
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
+
+archives:
+  - format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+release:
+  prerelease: auto 
