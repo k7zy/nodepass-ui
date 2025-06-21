@@ -2,10 +2,7 @@ name: Docker CI (beta)
 
 on:
   push:
-    branches:
-      - "*-beta"  # 启用分支推送触发，但会检查是否有 tag
     tags:
-      - "v*.*.*.beta*"
       - "v*.*.*-beta*"
 jobs:
   build-and-push:
@@ -33,62 +30,67 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version
-        id: vars
+      - name: 📝 获取Beta版本信息
+        id: get_version
         run: |
-          # 检查当前 commit 是否有 beta tag
-          CURRENT_TAG=$(git tag --points-at HEAD | grep -E '^v.*\.beta.*$' | head -1)
-          
+          # 只处理tag触发的情况
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # 直接由 tag 触发
             RAW_VERSION=${GITHUB_REF#refs/tags/}
-          elif [[ -n "$CURRENT_TAG" ]]; then
-            # 分支推送但当前 commit 有 beta tag
-            RAW_VERSION=$CURRENT_TAG
           else
-            # 普通分支推送，使用 commit hash
-            VERSION=${GITHUB_SHA::7}-beta
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            exit 0
+            echo "❌ 错误: Beta构建只支持tag触发"
+            exit 1
           fi
           
-          # 格式化版本号：v2.0.0.beta8 -> 2.0.0-beta8
-          if [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)\.beta([0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
-          elif [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-beta([0-9]+)$ ]]; then
+          # 只处理 v*.*.*-beta* 格式的标签
+          # v2.0.0-beta10 -> 2.0.0-beta10
+          if [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-beta([0-9]+)$ ]]; then
             VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
           else
-            # 如果格式不匹配，直接去掉 v 前缀
-            VERSION=${RAW_VERSION#v}
-            VERSION=${VERSION/.beta/-beta}
+            echo "❌ 错误: Beta标签格式不正确，期望格式: v*.*.*-beta*，实际: $RAW_VERSION"
+            exit 1
           fi
           
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "raw_version=$RAW_VERSION" >> $GITHUB_OUTPUT
+          echo "repo_name=$REPO_LC" >> $GITHUB_OUTPUT
+          echo "is_beta_tag=true" >> $GITHUB_OUTPUT
+          echo "📦 Beta版本: $VERSION (原始: $RAW_VERSION)"
 
-      - name: Prepare metadata
+      - name: 📋 提取Beta镜像元数据
         id: meta
-        run: |
-          REPO_LC=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
-          echo "repo=$REPO_LC" >> $GITHUB_OUTPUT
-          echo "version=${{ steps.vars.outputs.version }}" >> $GITHUB_OUTPUT
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.get_version.outputs.repo_name }}
+          tags: |
+            type=raw,value=${{ steps.get_version.outputs.version }}
+            type=raw,value=beta,enable=${{ steps.get_version.outputs.is_beta_tag == 'true' }}
 
-      - name: Build and push Docker image (beta)
+      - name: 🏗️ 构建和推送 Docker 镜像 (beta)
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
-          tags: |
-            ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}
-            ghcr.io/${{ steps.meta.outputs.repo }}:beta
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=${{ steps.get_version.outputs.repo_name }}
           build-args: |
-            VERSION=${{ steps.vars.outputs.version }}
+            BUILDKIT_INLINE_CACHE=1
+            VERSION=${{ steps.get_version.outputs.version }}
           platforms: linux/amd64
+          cache-from: |
+            type=gha,scope=beta-${{ github.workflow }}
+            type=registry,ref=ghcr.io/${{ steps.get_version.outputs.repo_name }}:beta-buildcache
+          cache-to: |
+            type=gha,mode=max,scope=beta-${{ github.workflow }}
+            type=registry,ref=ghcr.io/${{ steps.get_version.outputs.repo_name }}:beta-buildcache,mode=max
 
-      - name: Output version info
+      - name: 📢 输出Beta版本信息
         run: |
-          echo "🏷 Raw Version: ${{ steps.vars.outputs.raw_version }}"
-          echo "🏷 Formatted Version: ${{ steps.vars.outputs.version }}"
-          echo "📦 Image Tags:"
-          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}"
-          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:beta" 
+          echo "🏷️ 原始版本: ${{ steps.get_version.outputs.raw_version || '分支构建' }}"
+          echo "🏷️ 格式化版本: ${{ steps.get_version.outputs.version }}"
+          echo "📦 镜像标签:"
+          echo "${{ steps.meta.outputs.tags }}" | tr '\n' '\n  '
+          echo "🏗️ 构建架构: linux/amd64" 

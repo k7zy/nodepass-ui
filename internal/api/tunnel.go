@@ -966,6 +966,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		ListenPort int    `json:"listen_port"`
 		Mode       string `json:"mode"`
 		TLS        int    `json:"tls,omitempty"`
+		CertPath   string `json:"cert_path,omitempty"`
+		KeyPath    string `json:"key_path,omitempty"`
 		Inbounds   *struct {
 			TargetHost string `json:"target_host"`
 			TargetPort int    `json:"target_port"`
@@ -1132,6 +1134,10 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		)
 		if req.TLS > 0 {
 			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
+			// 如果是TLS 2且提供了证书路径，添加证书参数
+			if req.TLS == 2 && req.CertPath != "" && req.KeyPath != "" {
+				serverURL += fmt.Sprintf("&cert=%s&key=%s", req.CertPath, req.KeyPath)
+			}
 		} else {
 			serverURL += fmt.Sprintf("?log=%s", req.Log)
 		}
@@ -1264,6 +1270,10 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		)
 		if req.TLS > 0 {
 			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
+			// 如果是TLS 2且提供了证书路径，添加证书参数
+			if req.TLS == 2 && req.CertPath != "" && req.KeyPath != "" {
+				serverURL += fmt.Sprintf("&cert=%s&key=%s", req.CertPath, req.KeyPath)
+			}
 		} else {
 			serverURL += fmt.Sprintf("?log=%s", req.Log)
 		}
