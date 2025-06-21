@@ -85,146 +85,6 @@ builds:
       - -X main.Version={{ .Tag }}
     tags:
       - sqlite_omit_load_extension
-      
-  # Linux MIPS - 路由器、嵌入式设备 (big-endian)
-  - id: linux-mips
-    env:
-      - CGO_ENABLED=1
-      - CC=mips-linux-gnu-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - mips
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # Linux MIPSLE - 路由器、嵌入式设备 (little-endian)
-  - id: linux-mipsle
-    env:
-      - CGO_ENABLED=1
-      - CC=mipsel-linux-gnu-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - mipsle
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # Linux MIPS64 - 高端路由器、服务器
-  - id: linux-mips64
-    env:
-      - CGO_ENABLED=1
-      - CC=mips64-linux-gnuabi64-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - mips64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # Linux MIPS64LE - 高端路由器、服务器 (little-endian)
-  - id: linux-mips64le
-    env:
-      - CGO_ENABLED=1
-      - CC=mips64el-linux-gnuabi64-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - mips64le
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # Linux PowerPC64LE - IBM Power服务器
-  - id: linux-ppc64le
-    env:
-      - CGO_ENABLED=1
-      - CC=powerpc64le-linux-gnu-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - ppc64le
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # Linux s390x - IBM System z大型机
-  - id: linux-s390x
-    env:
-      - CGO_ENABLED=1
-      - CC=s390x-linux-gnu-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - s390x
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # Linux RISC-V 64-bit - 新兴开源架构
-  - id: linux-riscv64
-    env:
-      - CGO_ENABLED=1
-      - CC=riscv64-linux-gnu-gcc
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - linux
-    goarch:
-      - riscv64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
 
   # ==================== Windows 构建 ====================
       
@@ -268,98 +128,6 @@ builds:
     tags:
       - sqlite_omit_load_extension
 
-  # ==================== FreeBSD 构建 ====================
-  # 注意：FreeBSD需要特殊的CGO设置，可能需要FreeBSD系统来编译
-  # 这里先尝试交叉编译，如果失败可以移除
-      
-  # FreeBSD AMD64 - FreeBSD服务器
-  - id: freebsd-amd64
-    env:
-      - CGO_ENABLED=1
-      - GOOS=freebsd
-      - GOARCH=amd64
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - freebsd
-    goarch:
-      - amd64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-      
-  # FreeBSD ARM64 - FreeBSD ARM服务器
-  - id: freebsd-arm64
-    env:
-      - CGO_ENABLED=1
-      - GOOS=freebsd
-      - GOARCH=arm64
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - freebsd
-    goarch:
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-
-  # ==================== OpenBSD 构建 ====================
-      
-  # OpenBSD AMD64 - OpenBSD服务器
-  - id: openbsd-amd64
-    env:
-      - CGO_ENABLED=1
-      - GOOS=openbsd
-      - GOARCH=amd64
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - openbsd
-    goarch:
-      - amd64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-
-  # ==================== NetBSD 构建 ====================
-      
-  # NetBSD AMD64 - NetBSD服务器
-  - id: netbsd-amd64
-    env:
-      - CGO_ENABLED=1
-      - GOOS=netbsd
-      - GOARCH=amd64
-    main: ./cmd/server
-    binary: nodepassdash
-    goos:
-      - netbsd
-    goarch:
-      - amd64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s
-      - -w
-      - -X main.Version={{ .Tag }}
-    tags:
-      - sqlite_omit_load_extension
-
 archives:
   - format: tar.gz
     format_overrides:
@@ -387,26 +155,21 @@ release:
     
     ### 🎉 新版本发布
     
-    感谢使用 NodePass Dashboard！本版本支持多种架构和操作系统。
+    感谢使用 NodePass Dashboard！本版本支持主流架构和操作系统。
     
     ### 🏗️ 支持的架构
-    - **Linux**: x86_64, ARM64, ARMv7, ARMv6, MIPS, MIPS64, PowerPC64LE, s390x, RISC-V
+    - **Linux**: x86_64, ARM64, ARMv7, ARMv6
     - **Windows**: x86_64, i386 (32位)
-    - **FreeBSD**: x86_64, ARM64
-    - **OpenBSD**: x86_64
-    - **NetBSD**: x86_64
     
   footer: |
     
     ### 📥 下载说明
-    - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz`
-    - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz`
-    - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz` (树莓派2/3/4)
-    - **Linux ARMv6**: `nodepassdash_Linux_armv6.tar.gz` (树莓派1)
-    - **路由器 MIPS**: `nodepassdash_Linux_mips.tar.gz` 或 `nodepassdash_Linux_mipsle.tar.gz`
+    - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz` (服务器推荐)
+    - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz` (树莓派4 64位、ARM服务器)
+    - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz` (树莓派2/3/4 32位)
+    - **Linux ARMv6**: `nodepassdash_Linux_armv6.tar.gz` (树莓派1、老设备)
     - **Windows 64位**: `nodepassdash_Windows_x86_64.zip`
     - **Windows 32位**: `nodepassdash_Windows_i386.zip`
-    - **FreeBSD**: `nodepassdash_Freebsd_*.tar.gz`
     
     ### 🐳 Docker 镜像
     ```bash
@@ -416,4 +179,5 @@ release:
     ### 🔧 使用说明
     1. 下载对应架构的二进制文件
     2. 解压后直接运行 `./nodepassdash`
-    3. 默认监听 `http://localhost:3000` 
+    3. 默认监听 `http://localhost:3000`
+    4. 首次运行会自动创建管理员账户 

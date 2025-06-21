@@ -1,7 +1,13 @@
 package main
 
 import (
+	"NodePassDash/internal/api"
+	"NodePassDash/internal/auth"
+	"NodePassDash/internal/dashboard"
+	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/sse"
+	"NodePassDash/internal/tunnel"
 	"context"
 	"database/sql"
 	"flag"
@@ -9,28 +15,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
-	"NodePassDash/internal/api"
-	"NodePassDash/internal/auth"
-	"NodePassDash/internal/dashboard"
-	"NodePassDash/internal/endpoint"
-	"NodePassDash/internal/sse"
-	"NodePassDash/internal/tunnel"
-	"runtime"
-
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )
-
-// 静态文件嵌入 - 仅在dist目录存在时启用
-// TODO: 在有dist目录后启用下面这行
-// //go:embed dist/*
-// var staticFiles embed.FS
-
-// 注意: embed需要在构建时存在dist目录，如果没有请先运行 pnpm build
 
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
 var Version = "dev"
@@ -113,11 +105,10 @@ func main() {
 	// 注册 API 路由
 	rootRouter.PathPrefix("/api/").Handler(apiRouter)
 
-	// 静态文件服务 - 使用本地文件系统（为embed做准备）
-	// TODO: 构建时如果有embed，优先使用嵌入文件系统
+	// 静态文件服务
 	fs := http.FileServer(http.Dir("dist"))
 	rootRouter.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 如果请求路径以 /api/ 开头，交给 API 处理器
+		// 如果请求路径以 /api/ 开头，交给 API 处理器（理论上不会进入该函数，但保险起见）
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			apiRouter.ServeHTTP(w, r)
 			return
@@ -307,7 +298,7 @@ func initDatabase(db *sql.DB) error {
 	createSystemConfig := `
 	CREATE TABLE IF NOT EXISTS "SystemConfig" (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		key TEXT NOT NULL UNIQUE,
+		KEY TEXT NOT NULL UNIQUE,
 		value TEXT NOT NULL,
 		description TEXT,
 		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
