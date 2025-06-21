@@ -11,6 +11,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    
+    # 过滤掉 beta 标签，只处理正式版本
+    if: ${{ !contains(github.ref, 'beta') }}
 
     steps:
       - name: Checkout
@@ -57,8 +60,9 @@ jobs:
         with:
           images: ghcr.io/${{ steps.get_version.outputs.repo_name }}
           tags: |
-            type=raw,value=latest,enable=${{ steps.get_version.outputs.is_release == 'true' }}
-            type=raw,value=${{ steps.get_version.outputs.version }},enable=${{ steps.get_version.outputs.is_release == 'true' }}
+            type=raw,value=latest,enable=${{ steps.get_version.outputs.is_release == 'true' || steps.get_version.outputs.is_main == 'true' }}
+            type=raw,value=${{ steps.get_version.outputs.version }}
+            type=raw,value=dev,enable=${{ steps.get_version.outputs.is_main == 'true' && steps.get_version.outputs.is_release == 'false' }}
 
       - name: 🏗️ 构建和推送 Docker 镜像 (release)
         uses: docker/build-push-action@v5

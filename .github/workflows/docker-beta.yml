@@ -34,28 +34,34 @@ jobs:
       - name: 📝 获取Beta版本信息
         id: get_version
         run: |
-          # 只处理tag触发的情况
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Tag触发处理
             RAW_VERSION=${GITHUB_REF#refs/tags/}
+            
+            # 只处理 v*.*.*-beta* 格式的标签
+            # v2.0.0-beta10 -> 2.0.0-beta10
+            if [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-beta([0-9]+)$ ]]; then
+              VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
+              IS_BETA_TAG=true
+            else
+              echo "❌ 错误: Beta标签格式不正确，期望格式: v*.*.*-beta*，实际: $RAW_VERSION"
+              exit 1
+            fi
           else
-            echo "❌ 错误: Beta构建只支持tag触发"
-            exit 1
-          fi
-          
-          # 只处理 v*.*.*-beta* 格式的标签
-          # v2.0.0-beta10 -> 2.0.0-beta10
-          if [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-beta([0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
-          else
-            echo "❌ 错误: Beta标签格式不正确，期望格式: v*.*.*-beta*，实际: $RAW_VERSION"
-            exit 1
+            # 分支触发处理
+            BASE_VERSION=$(node -p "require('./package.json').version")
+            BRANCH_NAME=${GITHUB_REF#refs/heads/}
+            VERSION="${BASE_VERSION}-${BRANCH_NAME}-${GITHUB_SHA::7}"
+            RAW_VERSION="branch-${BRANCH_NAME}"
+            IS_BETA_TAG=false
           fi
           
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "raw_version=$RAW_VERSION" >> $GITHUB_OUTPUT
           echo "repo_name=$REPO_LC" >> $GITHUB_OUTPUT
-          echo "is_beta_tag=true" >> $GITHUB_OUTPUT
+          echo "is_beta_tag=$IS_BETA_TAG" >> $GITHUB_OUTPUT
+          echo "is_beta_branch=${{ contains(github.ref, 'beta') && !startsWith(github.ref, 'refs/tags/') }}" >> $GITHUB_OUTPUT
           echo "📦 Beta版本: $VERSION (原始: $RAW_VERSION)"
 
       - name: 📋 提取Beta镜像元数据
@@ -66,6 +72,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.get_version.outputs.version }}
             type=raw,value=beta,enable=${{ steps.get_version.outputs.is_beta_tag == 'true' }}
+            type=raw,value=dev-beta,enable=${{ steps.get_version.outputs.is_beta_branch == 'true' }}
 
       - name: 🏗️ 构建和推送 Docker 镜像 (beta)
         uses: docker/build-push-action@v5
@@ -81,10 +88,10 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
             VERSION=${{ steps.get_version.outputs.version }}
           platforms: linux/amd64
-          cache-from: |
-            type=gha,scope=beta-buildcache
-          cache-to: |
-            type=gha,mode=max,scope=beta-buildcache
+#          cache-from: |
+#            type=gha,scope=beta-buildcache
+#          cache-to: |
+#            type=gha,mode=max,scope=beta-buildcache
 
       - name: 📢 输出Beta版本信息
         run: |
