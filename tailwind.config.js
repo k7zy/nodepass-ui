@@ -60,5 +60,22 @@ const config = {
       },
     })
   ],
+  safelist: [
+    // 日志 ANSI 颜色映射，需要在运行时动态插入
+    'text-red-400',
+    'text-green-400',
+    'text-yellow-400',
+    'text-blue-400',
+    'text-purple-400',
+    'text-cyan-400',
+    'text-gray-400',
+    'dark:text-red-400',
+    'dark:text-green-400',
+    'dark:text-yellow-400',
+    'dark:text-blue-400',
+    'dark:text-purple-400',
+    'dark:text-cyan-400',
+    'dark:text-gray-400'
+  ],
 }
 module.exports = config;

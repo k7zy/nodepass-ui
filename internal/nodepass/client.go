@@ -2,6 +2,7 @@ package nodepass
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,7 +29,17 @@ type Client struct {
 // NewClient 新建客户端；httpClient 为空时使用默认 15 秒超时
 func NewClient(baseURL, apiPath, apiKey string, httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 15 * time.Second}
+		// 复制默认 Transport 并禁用证书校验，以支持自建/自签名 SSL
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		if tr.TLSClientConfig == nil {
+			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		} else {
+			tr.TLSClientConfig.InsecureSkipVerify = true
+		}
+		httpClient = &http.Client{
+			Timeout:   15 * time.Second,
+			Transport: tr,
+		}
 	}
 	return &Client{
 		baseURL:    baseURL,
@@ -118,4 +129,47 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 		}
 	}
 	return nil
+}
+
+// Instance 表示 NodePass 中的隧道实例信息
+// 与 NodePass API /instances 响应保持一致
+//
+// 示例响应:
+// [
+//
+//	{
+//	  "id": "860e24a3",
+//	  "type": "client",
+//	  "status": "running",
+//	  "url": "client://:3004/:3008?log=debug&max=100&min=10",
+//	  "tcprx": 0,
+//	  "tcptx": 0,
+//	  "udprx": 0,
+//	  "udptx": 0
+//	}
+//
+// ]
+//
+// 字段保持驼峰以方便 JSON 解析
+//
+//go:generate stringer -type=Instance
+type Instance struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+	URL    string `json:"url"`
+	TCPRx  int64  `json:"tcprx"`
+	TCPTx  int64  `json:"tcptx"`
+	UDPRx  int64  `json:"udprx"`
+	UDPTx  int64  `json:"udptx"`
+}
+
+// GetInstances 获取所有隧道实例列表
+func (c *Client) GetInstances() ([]Instance, error) {
+	url := fmt.Sprintf("%s%s/instances", c.baseURL, c.apiPath)
+	var resp []Instance
+	if err := c.doRequest(http.MethodGet, url, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

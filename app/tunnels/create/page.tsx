@@ -19,11 +19,14 @@ import { useState, useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
+  faArrowLeft,
   faServer, 
   faDesktop,
   faCheck,
   faXmark,
-  faExclamationTriangle
+  faExclamationTriangle,
+  faBars,
+  faTableCells
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 
@@ -108,12 +111,15 @@ export default function CreateTunnelPage() {
     tlsMode: "inherit",
     certPath: "",
     keyPath: "",
-    logLevel: "inherit"
+    logLevel: "inherit",
+    min: "",
+    max: ""
   });
 
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [layout, setLayout] = useState<"card" | "list">("card");
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
@@ -156,6 +162,11 @@ export default function CreateTunnelPage() {
         return;
       }
     }
+
+    // 对 min/max 仅允许数字
+    if (field === "min" || field === "max") {
+      if (!/^\d*$/.test(value)) return;
+    }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -197,10 +208,12 @@ export default function CreateTunnelPage() {
           tunnelPort: formData.tunnelPort,
           targetAddress: formData.targetAddress,
           targetPort: formData.targetPort,
-          tlsMode: formData.tlsMode,
-          certPath: formData.certPath || undefined,
-          keyPath: formData.keyPath || undefined,
+          tlsMode: formData.mode === 'server' ? formData.tlsMode : undefined,
+          certPath: formData.mode === 'server' && formData.certPath && formData.tlsMode === 'mode2' ? formData.certPath : undefined,
+          keyPath: formData.mode === 'server' && formData.keyPath && formData.tlsMode === 'mode2' ? formData.keyPath : undefined,
           logLevel: formData.logLevel,
+          min: formData.mode === 'client' && formData.min ? formData.min : undefined,
+          max: formData.mode === 'client' && formData.max ? formData.max : undefined,
         }),
       });
 
@@ -234,20 +247,34 @@ export default function CreateTunnelPage() {
         />
       )}
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">创建实例</h1>
-        <Button 
-          variant="light"
-          className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
-          onClick={() => router.back()}
-        >
-          返回
+      <div className="flex items-center gap-3 md:gap-4">
+        <Button
+            isIconOnly
+            variant="flat"
+            size="sm"
+            onClick={() => router.back()}
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} />
         </Button>
+        <h1 className="text-2xl font-bold">创建实例</h1>
       </div>
 
       <Card className="p-2 shadow-none border-2 border-default-200">
-        <CardHeader>
+        <CardHeader className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">选择 API 主控</h2>
+          <Button
+            isIconOnly
+            variant="light"
+            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            size="sm"
+            onClick={() => setLayout(layout === "card" ? "list" : "card")}
+          >
+            <FontAwesomeIcon
+              icon={layout === "card" ? faBars : faTableCells}
+              className="text-sm"
+            />
+          </Button>
         </CardHeader>
         <Divider />
         <CardBody className="p-6">
@@ -287,35 +314,64 @@ export default function CreateTunnelPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto scrollbar-hide">
-              <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+            layout === "card" ? (
+              <div className="overflow-x-auto scrollbar-hide">
+                <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+                  {endpoints.map((endpoint) => (
+                    <Card
+                      key={endpoint.id}
+                      isPressable
+                      isHoverable
+                      className={`min-w-[280px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                      onClick={() => handleInputChange("apiEndpoint", endpoint.id)}
+                    >
+                      <CardBody className="space-y-2 p-4">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className={cn(
+                              "w-2 h-2 rounded-full inline-block",
+                              endpoint.status === 'ONLINE' ? "bg-success" : "bg-danger"
+                            )}
+                          />
+                          <h3 className="font-semibold text-sm">{endpoint.name}</h3>
+                        </div>
+                        <p className="text-small text-default-500 truncate">{endpoint.url}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {endpoints.map((endpoint) => (
                   <Card
                     key={endpoint.id}
                     isPressable
                     isHoverable
-                    className={`min-w-[280px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                    className={`shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
                     onClick={() => handleInputChange("apiEndpoint", endpoint.id)}
                   >
-                    <CardBody className="space-y-2 p-4">
-                      <div className="flex items-center gap-2">
-                        <span 
+                    <CardBody className="flex items-center gap-2 p-4 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-0 w-full">
+                        {/* 状态点 */}
+                        <span
                           className={cn(
-                            "w-2 h-2 rounded-full inline-block",
+                            "w-2 h-2 rounded-full flex-shrink-0",
                             endpoint.status === 'ONLINE' ? "bg-success" : "bg-danger"
                           )}
                         />
-                        <h3 className="font-semibold text-sm">{endpoint.name}</h3>
-                      </div>
-                      <p className="text-small text-default-500 truncate">{endpoint.url}</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
+                        {/* 名称与 URL  */}
+                        <h3 className="font-semibold text-sm truncate max-w-[6rem]">{endpoint.name}</h3>
+                        <p className="text-small text-default-500 truncate flex-1">{endpoint.url}</p>
                       </div>
                     </CardBody>
                   </Card>
                 ))}
               </div>
-            </div>
+            )
           )}
         </CardBody>
       </Card>
@@ -343,7 +399,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">服务端模式</h3>
-                  <p className="text-small text-default-500">实例监听端，提供目标服务出口或入口，需双端握手</p>
+                  <p className="text-small text-default-500">隧道监听端，提供目标服务出口或入口，需双端握手</p>
                 </div>
               </CardBody>
             </Card>
@@ -363,7 +419,7 @@ export default function CreateTunnelPage() {
                 </div>
                 <div className="text-center w-full">
                   <h3 className="font-semibold">客户端模式</h3>
-                  <p className="text-small text-default-500">实例拨号端，提供目标服务入口或出口，可单端转发</p>
+                  <p className="text-small text-default-500">隧道拨号端，提供目标服务入口或出口，可单端转发</p>
                 </div>
               </CardBody>
             </Card>
@@ -431,13 +487,13 @@ export default function CreateTunnelPage() {
               <CardBody className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="实例地址"
+                    label="隧道地址"
                     placeholder="0.0.0.0"
                     value={formData.tunnelAddress}
                     onChange={(e) => handleInputChange("tunnelAddress", e.target.value)}
                   />
                   <Input
-                    label="实例端口"
+                    label="隧道端口"
                     placeholder="10101"
                     type="number"
                     min={0}
@@ -530,6 +586,31 @@ export default function CreateTunnelPage() {
         </Card>
       )}
 
+      {/* 客户端专用 min/max 设置 */}
+      {formData.mode === 'client' && (
+        <Card className="p-2 shadow-none border-2 border-default-200">
+          <CardHeader>
+            <h2 className="text-xl font-semibold">客户端参数</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody className="p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="连接池的最小容量"
+                placeholder="64"
+                value={formData.min}
+                onChange={(e) => handleInputChange('min', e.target.value)}
+              />
+              <Input
+                label="连接池的最大容量"
+                placeholder="8192"
+                value={formData.max}
+                onChange={(e) => handleInputChange('max', e.target.value)}
+              />
+            </div>
+          </CardBody>
+        </Card>
+      )}
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
           <h2 className="text-xl font-semibold">配置摘要</h2>
@@ -543,12 +624,15 @@ export default function CreateTunnelPage() {
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务端模式" : "客户端模式"}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例名称：</span> {formData.tunnelName}</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
                 {formData.mode === "server" &&
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "inherit" ? "继承主控设置" : formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
                 }
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {formData.logLevel === "inherit" ? "继承主控设置" : formData.logLevel.toUpperCase()}</p>
+                {formData.mode === "client" && (formData.min || formData.max) && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池容量：</span> {formData.min || '默认(64)'} ~ {formData.max || '默认(8192)'}</p>
+                )}
               </div>
             </CardBody>
           </Card>
@@ -556,24 +640,33 @@ export default function CreateTunnelPage() {
             <CardBody>
               <h3 className="text-lg font-semibold mb-4">等效命令行</h3>
               <Snippet>
-                {`${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}${
-                  formData.mode === "server" 
-                    ? `${formData.logLevel !== "inherit" || formData.tlsMode !== "inherit" ? "?" : ""}${
-                        formData.logLevel !== "inherit" ? `log=${formData.logLevel}` : ""
-                      }${
-                        formData.tlsMode !== "inherit" 
-                          ? `${formData.logLevel !== "inherit" ? "&" : ""}tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}${
-                              formData.tlsMode === "mode2" ? `&crt=${formData.certPath}&key=${formData.keyPath}` : ""
-                            }`
-                          : ""
-                      }`
-                    : `${formData.logLevel !== "inherit" ? "?log=" + formData.logLevel : ""}`
-                }`}
+                {(() => {
+                  const base = `${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}`;
+                  if (formData.mode === "server") {
+                    const params: string[] = [];
+                    if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
+                    if (formData.tlsMode !== "inherit") {
+                      params.push(`tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}`);
+                      if (formData.tlsMode === "mode2") {
+                        params.push(`crt=${formData.certPath}`);
+                        params.push(`key=${formData.keyPath}`);
+                      }
+                    }
+                    return params.length ? `${base}?${params.join("&")}` : base;
+                  } else {
+                    const params: string[] = [];
+                    if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
+                    if (formData.min) params.push(`min=${formData.min}`);
+                    if (formData.max) params.push(`max=${formData.max}`);
+                    return params.length ? `${base}?${params.join("&")}` : base;
+                  }
+                })()}
               </Snippet>
             </CardBody>
           </Card>
         </CardBody>
       </Card>
+
 
       <div className="flex justify-end gap-3">
         <Button

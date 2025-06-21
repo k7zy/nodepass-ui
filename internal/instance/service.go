@@ -10,14 +10,14 @@ import (
 
 // Instance 实例信息
 type Instance struct {
-	ID       string `json:"id"`
-	URL      string `json:"url"`
-	Status   string `json:"status"`
-	TcpRx    int64  `json:"tcp_rx"`
-	TcpTx    int64  `json:"tcp_tx"`
-	UdpRx    int64  `json:"udp_rx"`
-	UdpTx    int64  `json:"udp_tx"`
-	Error    string `json:"error,omitempty"`
+	ID     string `json:"id"`
+	URL    string `json:"url"`
+	Status string `json:"status"`
+	TcpRx  int64  `json:"tcp_rx"`
+	TcpTx  int64  `json:"tcp_tx"`
+	UdpRx  int64  `json:"udp_rx"`
+	UdpTx  int64  `json:"udp_tx"`
+	Error  string `json:"error,omitempty"`
 }
 
 // Service 实例管理服务
@@ -163,4 +163,4 @@ func (s *Service) GetInstanceTraffic(id int) ([]byte, error) {
 	}
 
 	return trafficHistory, nil
-} 
+}

@@ -1,0 +1,64 @@
+name: Docker CI (release)
+
+on:
+  push:
+    branches:
+      - "main"
+      - "rename"
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image (release)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+<<<<<<< HEAD:.github/workflows/docker-release.yml
+            registry.cn-hangzhou.aliyuncs.com/lyralink/nodepass-ui:${{ github.ref_name }}
+            registry.cn-hangzhou.aliyuncs.com/lyralink/nodepass-ui:latest
+          platforms: linux/amd64,linux/arm64
+=======
+            ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}
+            ghcr.io/${{ steps.meta.outputs.repo }}:latest
+          build-args: |
+            VERSION=${{ steps.vars.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: |
+            type=gha,scope=standard-${{ github.workflow }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache
+          cache-to: |
+            type=gha,mode=max,scope=standard-${{ github.workflow }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.get_version.outputs.repo_name }}:buildcache,mode=max
+
+      - name: Output version info
+        run: |
+          echo "🏷 Version: ${{ steps.vars.outputs.version }}"
+          echo "📦 Image Tags:"
+          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.vars.outputs.version }}"
+          echo "  ghcr.io/${{ steps.meta.outputs.repo }}:latest" 
+>>>>>>> a83e3e364296ff3d991e5ade49b24955bbdad448:.github/workflows/docker.yml

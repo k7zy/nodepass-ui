@@ -29,7 +29,7 @@ type Router struct {
 
 // NewRouter 创建路由器实例
 // 如果外部已创建 sseService / sseManager，则传入以复用，避免出现多个实例导致推流失效
-func NewRouter(db *sql.DB, sharedSSE *sse.Service, sharedManager *sse.Manager) *Router {
+func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Router {
 	// 创建路由器（忽略末尾斜杠差异）
 	router := mux.NewRouter()
 	router.StrictSlash(true)
@@ -39,17 +39,12 @@ func NewRouter(db *sql.DB, sharedSSE *sse.Service, sharedManager *sse.Manager) *
 	endpointService := endpoint.NewService(db)
 	instanceService := instance.NewService(db)
 	tunnelService := tunnel.NewService(db)
-	var sseService *sse.Service
-	var sseManager *sse.Manager
-	if sharedSSE != nil {
-		sseService = sharedSSE
-	} else {
-		sseService = sse.NewService(db)
+
+	if sseService == nil {
+		panic("sseService is nil")
 	}
-	if sharedManager != nil {
-		sseManager = sharedManager
-	} else {
-		sseManager = sse.NewManager(db, sseService)
+	if sseManager == nil {
+		panic("sseManager is nil")
 	}
 	dashboardService := dashboard.NewService(db)
 
@@ -108,6 +103,11 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/endpoints/simple", r.endpointHandler.HandleGetSimpleEndpoints).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/test", r.endpointHandler.HandleTestEndpoint).Methods("POST")
 	r.router.HandleFunc("/api/endpoints/status", r.endpointHandler.HandleEndpointStatus).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/logs", r.endpointHandler.HandleEndpointLogs).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/logs/search", r.endpointHandler.HandleSearchEndpointLogs).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/recycle", r.endpointHandler.HandleRecycleList).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/recycle/count", r.endpointHandler.HandleRecycleCount).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{endpointId}/recycle/{recycleId}", r.endpointHandler.HandleRecycleDelete).Methods("DELETE")
 
 	// 实例相关路由
 	r.router.HandleFunc("/api/endpoints/{endpointId}/instances", r.instanceHandler.HandleGetInstances).Methods("GET")
@@ -117,10 +117,12 @@ func (r *Router) registerRoutes() {
 	// SSE 相关路由
 	r.router.HandleFunc("/api/sse/global", r.sseHandler.HandleGlobalSSE).Methods("GET")
 	r.router.HandleFunc("/api/sse/tunnel/{tunnelId}", r.sseHandler.HandleTunnelSSE).Methods("GET")
+	r.router.HandleFunc("/api/sse/test", r.sseHandler.HandleTestSSEEndpoint).Methods("POST")
 
 	// 隧道相关路由
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleGetTunnels).Methods("GET")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleCreateTunnel).Methods("POST")
+	r.router.HandleFunc("/api/tunnels/quick", r.tunnelHandler.HandleQuickCreateTunnel).Methods("POST")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleGetTunnels).Methods("GET")

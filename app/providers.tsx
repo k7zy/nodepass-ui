@@ -52,6 +52,8 @@ export function Providers({ children, themeProps }: ProvidersProps) {
         <ToastProvider 
           placement="top-center" 
           toastOffset={80}
+          maxVisibleToasts={1}
+          toastProps={{ timeout: 1000 }}
         />
         {children}
       </NextThemesProvider>
