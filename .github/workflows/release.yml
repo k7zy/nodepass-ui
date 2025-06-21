@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: [ 'v*.*.*' ]
-    branches: [ main ]
 
 
 jobs:
@@ -27,11 +26,62 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run GoReleaser
+      - name: Verify Git State
+        run: |
+          echo "Current ref: $GITHUB_REF"
+          echo "Event name: $GITHUB_EVENT_NAME"
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Commit SHA: $GITHUB_SHA"
+          echo ""
+          echo "Git status:"
+          git status
+          echo ""
+          echo "Available tags (latest 10):"
+          git tag -l --sort=-version:refname | head -10
+          echo ""
+          echo "Current commit tags:"
+          git tag --points-at HEAD
+          echo ""
+          echo "Tag count:"
+          git tag | wc -l
+          echo ""
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            echo "Tag triggered: $TAG_NAME"
+            if git tag -l | grep -q "^$TAG_NAME$"; then
+              echo "✅ Tag $TAG_NAME exists in local repository"
+            else
+              echo "❌ Tag $TAG_NAME NOT found in local repository"
+            fi
+          fi
+          
+      - name: Check if running on tag
+        id: check_tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+            echo "Running on tag: ${GITHUB_REF#refs/tags/}"
+          else
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+            echo "Not running on tag, will use snapshot mode"
+          fi
+          
+      - name: Run GoReleaser (Release)
+        if: steps.check_tag.outputs.is_tag == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: 'latest'
           args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Run GoReleaser (Snapshot)
+        if: steps.check_tag.outputs.is_tag == 'false'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: 'latest'
+          args: build --snapshot --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
