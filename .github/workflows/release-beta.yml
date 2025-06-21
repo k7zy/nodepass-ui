@@ -23,16 +23,45 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Verify Git State  
+      - name: 📝 获取Beta版本信息
+        id: get_version
         run: |
-          echo "Current ref: $GITHUB_REF"
-          echo "Available tags:"
-          git tag -l | head -10
-          echo "Current commit tags:"
-          git tag --points-at HEAD
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # 标签触发处理
+            RAW_VERSION=${GITHUB_REF#refs/tags/}
+            
+            # 只处理 v*.*.*-beta* 格式的标签
+            if [[ $RAW_VERSION =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-beta([0-9]+)$ ]]; then
+              VERSION="${BASH_REMATCH[1]}-beta${BASH_REMATCH[2]}"
+              TEMP_TAG="$RAW_VERSION"
+              IS_TAG_TRIGGER=true
+              echo "🏷️ Beta tag triggered: $RAW_VERSION → $VERSION"
+            else
+              echo "❌ 错误: Beta标签格式不正确，期望格式: v*.*.*-beta*，实际: $RAW_VERSION"
+              exit 1
+            fi
+          else
+            # 分支触发处理
+            BASE_VERSION=$(node -p "require('./package.json').version")
+            BRANCH_NAME=${GITHUB_REF#refs/heads/}
+            VERSION="${BASE_VERSION}-${BRANCH_NAME}-${GITHUB_SHA::7}"
+            TEMP_TAG="v${BASE_VERSION}-${BRANCH_NAME}-${GITHUB_SHA::7}"
+            IS_TAG_TRIGGER=false
+            echo "🌿 Beta branch triggered: $BRANCH_NAME → $VERSION"
+            
+            # 创建临时标签
+            if ! git tag -l | grep -q "^$TEMP_TAG$"; then
+              echo "📌 Creating temporary tag: $TEMP_TAG"
+              git tag "$TEMP_TAG"
+            fi
+          fi
           
-      - name: Run GoReleaser (Beta Release)
-        if: startsWith(github.ref, 'refs/tags/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TEMP_TAG" >> $GITHUB_OUTPUT
+          echo "is_tag_trigger=$IS_TAG_TRIGGER" >> $GITHUB_OUTPUT
+          
+      - name: 🚀 运行 GoReleaser (Beta正式发布)
+        if: steps.get_version.outputs.is_tag_trigger == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -41,12 +70,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Run GoReleaser (Beta Snapshot)
-        if: startsWith(github.ref, 'refs/heads/')
+      - name: 🏗️ 运行 GoReleaser (Beta开发构建)
+        if: steps.get_version.outputs.is_tag_trigger == 'false'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: 'latest'
-          args: build --snapshot --clean
+          args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 📢 输出构建信息
+        run: |
+          echo "🏷️ 版本: ${{ steps.get_version.outputs.version }}"
+          echo "🏷️ 标签: ${{ steps.get_version.outputs.tag_name }}"
+          echo "🏷️ 触发方式: ${{ steps.get_version.outputs.is_tag_trigger == 'true' && 'Tag' || 'Branch' }}" 

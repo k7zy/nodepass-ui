@@ -1,27 +1,45 @@
 version: 2
 
 builds:
-  - env:
-      - CGO_ENABLED=0
+  # Linux 构建 (本地编译器)
+  - id: linux
+    env:
+      - CGO_ENABLED=1
     main: ./cmd/server
     binary: nodepassdash
     goos:
-      - darwin
       - linux
-      - windows
     goarch:
       - amd64
-      - arm64  # armv8 (64位)
-      - arm    # armv6/armv7 (32位)
-    goarm:     # ARM 版本 (仅对 GOARCH=arm 有效)
-      - 6      # armv6 (树莓派 1)
-      - 7      # armv7 (树莓派 2/3/4 32位系统)
+      - arm64
     flags:
       - -trimpath
     ldflags:
       - -s -w -X main.Version={{ .Tag }}
     tags:
       - sqlite_omit_load_extension
+      
+  # Windows 构建 (交叉编译器)
+  - id: windows
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+    main: ./cmd/server
+    binary: nodepassdash
+    goos:
+      - windows
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
+      
+  # macOS 构建 (需要更复杂的交叉编译设置，暂时跳过)
+  # 如果需要 macOS 支持，建议使用 GitHub 的 macOS runner
 
 archives:
   - format: tar.gz
@@ -30,4 +48,8 @@ archives:
         format: zip
 
 release:
-  prerelease: auto 
+  prerelease: auto
+  # 当从main分支触发时，标记为预发布版本
+  name_template: "{{ if not .IsTag }}Development {{ end }}Release {{ .Tag }}"
+  # 允许替换已存在的发布
+  replace_existing_draft: true 

@@ -26,6 +26,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          
+      - name: 🔧 安装CGO交叉编译工具
+        run: |
+          # 安装 Windows 交叉编译工具
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
+          
+          # 安装 macOS 交叉编译工具 (osxcross)
+          # 注意: 这可能需要较长时间，如果构建时间过长可以考虑移除 macOS 支持
+          echo "✅ 交叉编译工具安装完成"
 
       - name: 📝 获取版本信息
         id: get_version
