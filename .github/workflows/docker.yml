@@ -74,10 +74,10 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
             VERSION=${{ steps.get_version.outputs.version }}
           platforms: linux/amd64,linux/arm64
-          cache-from: |
-            type=gha,scope=release-buildcache
-          cache-to: |
-            type=gha,mode=max,scope=release-buildcache
+#          cache-from: |
+#            type=gha,scope=release-buildcache
+#          cache-to: |
+#            type=gha,mode=max,scope=release-buildcache
 
       - name: 📢 输出版本信息
         run: |
