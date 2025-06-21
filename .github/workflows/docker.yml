@@ -24,6 +24,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          # 使用默认的buildx实例，避免平台检测问题
+          use: true
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -31,6 +34,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔍 验证构建环境
+        run: |
+          echo "🏗️ Docker Buildx信息:"
+          docker buildx ls
+          echo ""
+          echo "🎯 支持的平台:"
+          docker buildx inspect --bootstrap | grep "Platforms:"
+          echo ""
+          echo "📋 当前构建配置:"
+          echo "  - 目标平台: linux/amd64, linux/arm64"
+          echo "  - 触发方式: ${{ github.ref }}"
 
       - name: 📝 获取版本信息
         id: get_version
@@ -71,9 +86,9 @@ jobs:
             org.opencontainers.image.description=NodePass Dashboard - 隧道管理面板
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.created=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
 
       - name: 🏗️ 构建和推送 Docker 镜像
+        id: build-and-push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -88,14 +103,17 @@ jobs:
           # 启用构建缓存以提高速度
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # 确保只推送指定平台的镜像
+          provenance: false
+          sbom: false
 
-      - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-        run: echo ${{ steps.meta.outputs.tags }} | tr ',' '\n' | xargs -I {} cosign sign --yes {}@${DIGEST}
-        
+      - name: 🧹 清理构建缓存（避免unknown平台）
+        if: always()
+        run: |
+          echo "🧹 清理可能的无效构建缓存..."
+          docker buildx prune -f --filter until=1h
+          echo "✅ 缓存清理完成"
+
       - name: 📢 输出版本信息
         run: |
           echo "🏷️ 版本: ${{ steps.get_version.outputs.version }}"
@@ -109,5 +127,4 @@ jobs:
           echo "💡 标签说明:"
           echo "  ✅ 正式发布版本"
           echo "  📦 标签: latest + ${{ steps.get_version.outputs.version }}"
-          echo "  🚀 推荐使用: docker pull ghcr.io/${{ steps.get_version.outputs.repo_name }}:latest"
-          fi 
+          echo "  🚀 推荐使用: docker pull ghcr.io/${{ steps.get_version.outputs.repo_name }}:latest" 

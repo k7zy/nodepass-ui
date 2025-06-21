@@ -9,11 +9,18 @@ builds:
       - CGO_ENABLED=1
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [amd64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux ARM64 (aarch64) - 新款ARM服务器、树莓派4 64位
   - id: linux-arm64
@@ -22,11 +29,18 @@ builds:
       - CC=aarch64-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [arm64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux ARMv7 (hard-float) - 树莓派2/3/4 32位、大多数ARM设备
   - id: linux-armv7
@@ -35,12 +49,20 @@ builds:
       - CC=arm-linux-gnueabihf-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [arm]
-    goarm: [7]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - arm
+    goarm:
+      - 7
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux ARMv6 (soft-float) - 树莓派1、老款ARM设备
   - id: linux-armv6
@@ -49,12 +71,20 @@ builds:
       - CC=arm-linux-gnueabi-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [arm]
-    goarm: [6]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - arm
+    goarm:
+      - 6
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux MIPS - 路由器、嵌入式设备 (big-endian)
   - id: linux-mips
@@ -63,11 +93,18 @@ builds:
       - CC=mips-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [mips]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - mips
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux MIPSLE - 路由器、嵌入式设备 (little-endian)
   - id: linux-mipsle
@@ -76,11 +113,18 @@ builds:
       - CC=mipsel-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [mipsle]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - mipsle
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux MIPS64 - 高端路由器、服务器
   - id: linux-mips64
@@ -89,11 +133,18 @@ builds:
       - CC=mips64-linux-gnuabi64-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [mips64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - mips64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux MIPS64LE - 高端路由器、服务器 (little-endian)
   - id: linux-mips64le
@@ -102,11 +153,18 @@ builds:
       - CC=mips64el-linux-gnuabi64-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [mips64le]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - mips64le
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux PowerPC64LE - IBM Power服务器
   - id: linux-ppc64le
@@ -115,11 +173,18 @@ builds:
       - CC=powerpc64le-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [ppc64le]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - ppc64le
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux s390x - IBM System z大型机
   - id: linux-s390x
@@ -128,11 +193,18 @@ builds:
       - CC=s390x-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [s390x]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - s390x
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Linux RISC-V 64-bit - 新兴开源架构
   - id: linux-riscv64
@@ -141,11 +213,18 @@ builds:
       - CC=riscv64-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [linux]
-    goarch: [riscv64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - linux
+    goarch:
+      - riscv64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
 
   # ==================== Windows 构建 ====================
       
@@ -156,11 +235,18 @@ builds:
       - CC=x86_64-w64-mingw32-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [windows]
-    goarch: [amd64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - windows
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # Windows 386 - 32位Windows系统
   - id: windows-386
@@ -169,11 +255,18 @@ builds:
       - CC=i686-w64-mingw32-gcc
     main: ./cmd/server
     binary: nodepassdash
-    goos: [windows]
-    goarch: [386]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - windows
+    goarch:
+      - 386
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
 
   # ==================== FreeBSD 构建 ====================
   # 注意：FreeBSD需要特殊的CGO设置，可能需要FreeBSD系统来编译
@@ -187,11 +280,18 @@ builds:
       - GOARCH=amd64
     main: ./cmd/server
     binary: nodepassdash
-    goos: [freebsd]
-    goarch: [amd64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - freebsd
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
       
   # FreeBSD ARM64 - FreeBSD ARM服务器
   - id: freebsd-arm64
@@ -201,11 +301,18 @@ builds:
       - GOARCH=arm64
     main: ./cmd/server
     binary: nodepassdash
-    goos: [freebsd]
-    goarch: [arm64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - freebsd
+    goarch:
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
 
   # ==================== OpenBSD 构建 ====================
       
@@ -217,11 +324,18 @@ builds:
       - GOARCH=amd64
     main: ./cmd/server
     binary: nodepassdash
-    goos: [openbsd]
-    goarch: [amd64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - openbsd
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
 
   # ==================== NetBSD 构建 ====================
       
@@ -233,11 +347,18 @@ builds:
       - GOARCH=amd64
     main: ./cmd/server
     binary: nodepassdash
-    goos: [netbsd]
-    goarch: [amd64]
-    flags: [-trimpath]
-    ldflags: [-s, -w, -X, main.Version={{ .Tag }}]
-    tags: [sqlite_omit_load_extension]
+    goos:
+      - netbsd
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Version={{ .Tag }}
+    tags:
+      - sqlite_omit_load_extension
 
 archives:
   - format: tar.gz
