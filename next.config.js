@@ -30,11 +30,19 @@ const nextConfig = {
   basePath: '',
   // 配置静态导出时的路由处理
   trailingSlash: !isDev,
-  // 配置动态路由的静态生成
+  // 配置实验性功能
   experimental: {
-    appDir: true,
-    serverActions: false
+    serverActions: {
+      allowedOrigins: ['localhost:3000', '127.0.0.1:3000']
+    }
   },
+  // 配置开发模式下允许的跨域来源
+  allowedDevOrigins: [
+    'localhost:3000',
+    '127.0.0.1:3000',
+    '192.168.0.83:3000',
+    '0.0.0.0:3000'
+  ],
   // 开发模式本地代理 API
   async rewrites() {
     if (isDev) {

@@ -1,7 +1,6 @@
 package sse
 
 import (
-	"NodePassDash/internal/db"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
@@ -917,7 +916,55 @@ func (s *Service) tunnelDelete(tx *sql.Tx, endpointID int64, instanceID string) 
 }
 
 func (s *Service) withTx(fn func(*sql.Tx) error) error {
-	return db.TxWithRetry(fn)
+	maxRetries := 3
+	baseDelay := 50 * time.Millisecond
+
+	for i := 0; i < maxRetries; i++ {
+		tx, err := s.db.Begin()
+		if err != nil {
+			if isLockError(err) && i < maxRetries-1 {
+				delay := time.Duration(i+1) * baseDelay
+				time.Sleep(delay)
+				continue
+			}
+			return err
+		}
+
+		err = fn(tx)
+		if err != nil {
+			tx.Rollback()
+			if isLockError(err) && i < maxRetries-1 {
+				delay := time.Duration(i+1) * baseDelay
+				time.Sleep(delay)
+				continue
+			}
+			return err
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			if isLockError(err) && i < maxRetries-1 {
+				delay := time.Duration(i+1) * baseDelay
+				time.Sleep(delay)
+				continue
+			}
+			return err
+		}
+
+		return nil
+	}
+	return nil
+}
+
+// isLockError 检查是否是数据库锁错误
+func isLockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return errStr == "database is locked" ||
+		errStr == "database locked" ||
+		errStr == "SQLITE_BUSY"
 }
 
 // helper
@@ -996,7 +1043,7 @@ func (s *Service) flushBatchUnsafe() {
 
 // processBatchEvents 批量处理事件
 func (s *Service) processBatchEvents(events []models.EndpointSSE) error {
-	return db.TxWithRetry(func(tx *sql.Tx) error {
+	return s.withTx(func(tx *sql.Tx) error {
 		for _, event := range events {
 			if err := s.processSingleEventInTx(tx, event); err != nil {
 				log.Warnf("[Master-%d#SSE]Inst.%s批量处理失败: %v", event.EndpointID, event.InstanceID, err)
